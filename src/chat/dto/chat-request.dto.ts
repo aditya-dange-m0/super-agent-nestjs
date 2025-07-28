@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export class ChatMessage {
   @IsString()
@@ -10,8 +10,10 @@ export class ChatMessage {
   @IsNotEmpty()
   content: string;
 
-  @IsOptional()
-  timestamp?: number;
+  @IsNumber()
+  @Transform(({ value }) => value || Date.now()) // Auto-generate if not provided
+  timestamp: number; // Made required to match interface
+
 
   @IsOptional()
   toolCalls?: {

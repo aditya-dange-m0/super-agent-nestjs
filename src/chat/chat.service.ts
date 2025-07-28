@@ -1,19 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { generateText } from 'ai';
 import { ConfigService } from '@nestjs/config';
-import { CacheService } from '../common/services/cache.service';
+import { CacheService } from '../cache/cache.service';
 import { ModelProviderService } from '../common/services/model-provider.service';
 import { AnalysisService } from './services/analysis.service';
 import { ToolPreparationService } from './services/tool-preparation.service';
 import { ConversationService } from './services/conversation.service';
 import { ExecutionContextService } from './services/execution-context.service';
 import { PineconeService } from '../pinecone/pinecone.service';
-import { RouteAppsService } from '../route-apps/route-apps.service';
-import { 
-  ChatRequest, 
-  ChatResponse, 
+import { LlmRouterService } from '../llm-router/llm-router.service';
+import {
+  ChatRequest,
+  ChatResponse,
   ChatMessage,
-  ComprehensiveAnalysis 
+  ComprehensiveAnalysis,
 } from './interfaces/chat.interfaces';
 import { buildOptimizedPrompt } from './utils/prompt-builder.util';
 
@@ -30,7 +30,7 @@ export class ChatService {
     private readonly conversationService: ConversationService,
     private readonly executionContextService: ExecutionContextService,
     private readonly pineconeService: PineconeService,
-    private readonly routeAppsService: RouteAppsService,
+    private readonly llmRouterService: LlmRouterService, // Fixed naming
     private readonly configService: ConfigService,
   ) {
     this.maxAgentSteps = this.configService.get<number>('MAX_AGENT_STEPS', 8);
@@ -41,22 +41,31 @@ export class ChatService {
     const startTime = Date.now();
 
     try {
-      this.logger.log(`🚀 Production Chat Request - User: ${userId}, Query: "${userQuery}", Session: ${sessionId || 'N/A'}`);
+      this.logger.log(
+        `🚀 Production Chat Request - User: ${userId}, Query: "${userQuery.substring(0, 100)}...", Session: ${sessionId || 'N/A'}`,
+      );
 
-      // Initialize Pinecone
-      await this.pineconeService.initializeIndex();
+      // Initialize Pinecone - using the lifecycle method from your service
+      await this.pineconeService.onModuleInit();
 
       // Get conversation history
-      const existingHistory = conversationHistory || 
+      const existingHistory =
+        conversationHistory ||
         this.conversationService.getHistory(userId, sessionId);
-      
-      const lastSummary = existingHistory.length > 0
-        ? existingHistory[existingHistory.length - 1]?.analysis?.conversationSummary
-        : null;
 
-      this.logger.log(`Existing conversation history length: ${existingHistory.length}`);
+      const lastSummary =
+        existingHistory.length > 0
+          ? existingHistory[existingHistory.length - 1]?.analysis
+              ?.conversationSummary
+          : null;
+
+      this.logger.log(
+        `Existing conversation history length: ${existingHistory.length}`,
+      );
       if (lastSummary) {
-        this.logger.log(`Last conversation summary intent: ${lastSummary.currentIntent}`);
+        this.logger.log(
+          `Last conversation summary intent: ${lastSummary.currentIntent}`,
+        );
       }
 
       // Phase 1: Single comprehensive analysis
@@ -64,7 +73,7 @@ export class ChatService {
       const analysis = await this.analysisService.performComprehensiveAnalysis(
         userQuery,
         existingHistory,
-        lastSummary
+        lastSummary,
       );
 
       let finalResponse: ChatResponse;
@@ -74,19 +83,19 @@ export class ChatService {
         finalResponse = await this.handleHighConfidenceToolExecution(
           request,
           analysis,
-          existingHistory
+          existingHistory,
         );
       } else if (analysis.confidenceScore >= 0.4) {
         finalResponse = await this.handleMediumConfidenceClarification(
           request,
           analysis,
-          existingHistory
+          existingHistory,
         );
       } else {
         finalResponse = await this.handleLowConfidenceConversation(
           request,
           analysis,
-          existingHistory
+          existingHistory,
         );
       }
 
@@ -107,40 +116,46 @@ export class ChatService {
   private async handleHighConfidenceToolExecution(
     request: ChatRequest,
     analysis: ComprehensiveAnalysis,
-    existingHistory: ChatMessage[]
+    existingHistory: ChatMessage[],
   ): Promise<ChatResponse> {
     this.logger.log('🔧 High-confidence tool execution path');
 
-    // Get initial tool routing
-    const initialToolNames = await this.getInitialToolRouting(request.userQuery);
-    
-    // Prepare tools
-    const toolResult = await this.toolPreparationService.prepareToolsForExecution(
-      analysis,
+    // Get initial tool routing using the correct service method
+    const initialToolNames = await this.getInitialToolRouting(
       request.userQuery,
-      request.userId,
-      initialToolNames
     );
 
+    // Prepare tools
+    const toolResult =
+      await this.toolPreparationService.prepareToolsForExecution(
+        analysis,
+        request.userQuery,
+        request.userId,
+        initialToolNames,
+      );
+
     const hasTools = Object.keys(toolResult.tools).length > 0;
-    this.logger.log(`Tools prepared. Has tools: ${hasTools}. Required connections: ${JSON.stringify(toolResult.requiredConnections)}`);
+    this.logger.log(
+      `Tools prepared. Has tools: ${hasTools}. Required connections: ${JSON.stringify(toolResult.requiredConnections)}`,
+    );
 
     if (hasTools) {
       return await this.executeWithTools(
         request,
         analysis,
         existingHistory,
-        toolResult
+        toolResult,
       );
     } else {
       return {
-        response: toolResult.requiredConnections.length > 0
-          ? `I need access to ${toolResult.requiredConnections.join(', ')} to help with this request. Please connect these apps first.`
-          : "I understand your request but don't have access to the required tools at the moment.",
+        response:
+          toolResult.requiredConnections.length > 0
+            ? `I need access to ${toolResult.requiredConnections.join(', ')} to help with this request. Please connect these apps first.`
+            : "I understand your request but don't have access to the required tools at the moment.",
         executedTools: [],
         requiredConnections: toolResult.requiredConnections,
         conversationHistory: existingHistory,
-        analysis
+        analysis,
       };
     }
   }
@@ -149,13 +164,13 @@ export class ChatService {
     request: ChatRequest,
     analysis: ComprehensiveAnalysis,
     existingHistory: ChatMessage[],
-    toolResult: any
+    toolResult: any,
   ): Promise<ChatResponse> {
     const optimizedPrompt = buildOptimizedPrompt(
       request.userQuery,
       analysis,
       existingHistory,
-      true
+      true,
     );
 
     this.logger.log('Calling generateText with tools...');
@@ -173,25 +188,71 @@ export class ChatService {
       maxTokens: 3000,
     });
 
-    const executedTools = executionResult.toolCalls || [];
-    this.logger.log(`generateText returned ${executedTools.length} tool calls`);
+    // Get tool calls and results from the execution result
+    const toolCalls = executionResult.toolCalls || [];
+    const toolResults = executionResult.toolResults || [];
 
-    // Process tool results
+    this.logger.log(
+      `generateText returned ${toolCalls.length} tool calls with ${toolResults.length} results`,
+    );
+
+    // Create a map of toolCallId to result for easy lookup
+    const resultMap = new Map();
+    toolResults.forEach((result: any) => {
+      if (result.toolCallId) {
+        resultMap.set(result.toolCallId, result.result);
+      }
+    });
+
+    // Process tool results - combining calls with their results
     let hadToolFailure = false;
     let failedToolNames: string[] = [];
     let toolExecutionDetails: string[] = [];
+    const executedTools: any[] = [];
 
-    if (executedTools.length > 0) {
-      for (const toolCall of executedTools) {
-        this.logger.log(`Tool Execution - Tool: ${toolCall.toolName}, Args: ${JSON.stringify(toolCall.args)}, Result: ${JSON.stringify(toolCall.result)}`);
-        
-        if (toolCall.result && typeof toolCall.result === 'object' && 'error' in toolCall.result) {
-          this.logger.error(`Tool Execution FAILURE for ${toolCall.toolName}:`, toolCall.result.error);
+    if (toolCalls.length > 0) {
+      for (const toolCall of toolCalls) {
+        // Get the result for this specific tool call
+        const toolCallResult = resultMap.get(toolCall.toolCallId);
+
+        this.logger.log(
+          `Tool Execution - Tool: ${toolCall.toolName}, Args: ${JSON.stringify(toolCall.args)}, Result: ${JSON.stringify(toolCallResult)}`,
+        );
+
+        // Create the executed tool object with the result
+        const executedTool = {
+          toolCallId: toolCall.toolCallId,
+          toolName: toolCall.toolName,
+          args: toolCall.args,
+          result: toolCallResult,
+        };
+
+        executedTools.push(executedTool);
+
+        // Check for failures using the result
+        if (
+          toolCallResult &&
+          typeof toolCallResult === 'object' &&
+          'error' in toolCallResult
+        ) {
+          this.logger.error(
+            `Tool Execution FAILURE for ${toolCall.toolName}:`,
+            toolCallResult.error,
+          );
           hadToolFailure = true;
           failedToolNames.push(toolCall.toolName);
-          toolExecutionDetails.push(`${toolCall.toolName} failed: ${toolCall.result.error}`);
-        } else if (toolCall.result && typeof toolCall.result === 'object' && 'success' in toolCall.result && toolCall.result.success === false) {
-          this.logger.error(`Tool Execution FAILURE for ${toolCall.toolName}: Success property is false`);
+          toolExecutionDetails.push(
+            `${toolCall.toolName} failed: ${toolCallResult.error}`,
+          );
+        } else if (
+          toolCallResult &&
+          typeof toolCallResult === 'object' &&
+          'success' in toolCallResult &&
+          toolCallResult.success === false
+        ) {
+          this.logger.error(
+            `Tool Execution FAILURE for ${toolCall.toolName}: Success property is false`,
+          );
           hadToolFailure = true;
           failedToolNames.push(toolCall.toolName);
           toolExecutionDetails.push(`${toolCall.toolName} failed.`);
@@ -201,13 +262,17 @@ export class ChatService {
         }
 
         // Add result to execution context
-        this.executionContextService.addStepResult(toolCall.toolCallId, toolCall.result);
+        this.executionContextService.addStepResult(
+          toolCall.toolCallId,
+          toolCallResult,
+        );
       }
     }
 
     const responseText = hadToolFailure
       ? `I attempted to complete your request, but encountered issues with the following actions: ${failedToolNames.join(', ')}. Details: ${toolExecutionDetails.join('; ')}. Please check the details for each action.`
-      : executionResult.text || "Task completed successfully using specialized tools.";
+      : executionResult.text ||
+        'Task completed successfully using specialized tools.';
 
     return {
       response: responseText,
@@ -215,18 +280,18 @@ export class ChatService {
         name: tool.toolName,
         args: tool.args,
         result: tool.result,
-        stepNumber: idx + 1
+        stepNumber: idx + 1,
       })),
       requiredConnections: toolResult.requiredConnections,
       conversationHistory: existingHistory,
-      analysis
+      analysis,
     };
   }
 
   private async handleMediumConfidenceClarification(
     request: ChatRequest,
     analysis: ComprehensiveAnalysis,
-    existingHistory: ChatMessage[]
+    existingHistory: ChatMessage[],
   ): Promise<ChatResponse> {
     this.logger.log('❓ Medium-confidence clarification path');
 
@@ -234,38 +299,40 @@ export class ChatService {
       const clarificationText = `I need clarification on:\n\n${analysis.clarificationNeeded
         .map((item, idx) => `${idx + 1}. ${item}`)
         .join('\n')}\n\nPlease provide these details.`;
-      
+
       return {
         response: clarificationText,
         executedTools: [],
         requiredConnections: [],
         conversationHistory: existingHistory,
-        analysis
+        analysis,
       };
     } else {
       const simplePrompt = buildOptimizedPrompt(
         request.userQuery,
         analysis,
         existingHistory,
-        false
+        false,
       );
 
-      // Use the default model for simple responses
-      const defaultModel = this.modelProviderService.getModel('openai:gpt-4o-mini');
+      // Use the chat model for simple responses
+      const chatModel = this.modelProviderService.getChatModel();
 
       const result = await generateText({
-        model: defaultModel,
+        model: chatModel,
         prompt: simplePrompt,
         temperature: 0.4,
         maxTokens: 1500,
       });
 
       return {
-        response: result.text || "I understand you're asking about your request. Let me help you with that.",
+        response:
+          result.text ||
+          "I understand you're asking about your request. Let me help you with that.",
         executedTools: [],
         requiredConnections: [],
         conversationHistory: existingHistory,
-        analysis
+        analysis,
       };
     }
   }
@@ -273,7 +340,7 @@ export class ChatService {
   private async handleLowConfidenceConversation(
     request: ChatRequest,
     analysis: ComprehensiveAnalysis,
-    existingHistory: ChatMessage[]
+    existingHistory: ChatMessage[],
   ): Promise<ChatResponse> {
     this.logger.log('💬 Low-confidence conversational response path');
 
@@ -295,18 +362,24 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
     });
 
     return {
-      response: result.text || "I'm here to help! Could you provide more details about what you need?",
+      response:
+        result.text ||
+        "I'm here to help! Could you provide more details about what you need?",
       executedTools: [],
       requiredConnections: [],
       conversationHistory: existingHistory,
-      analysis
+      analysis,
     };
   }
 
   private async getInitialToolRouting(userQuery: string): Promise<string[]> {
     try {
-      const { toolNames } = await this.routeAppsService.routeApps(userQuery);
-      this.logger.log(`Initial routing identified specific tool names: ${JSON.stringify(toolNames)}`);
+      // Using the correct service method name from your LlmRouterService
+      const { toolNames } =
+        await this.llmRouterService.routeAppsWithLLM(userQuery);
+      this.logger.log(
+        `Initial routing identified specific tool names: ${JSON.stringify(toolNames)}`,
+      );
       return toolNames;
     } catch (error) {
       this.logger.warn('Error during initial routing for tool names:', error);
@@ -317,7 +390,7 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
   private async updateConversationHistory(
     request: ChatRequest,
     response: ChatResponse,
-    analysis: ComprehensiveAnalysis
+    analysis: ComprehensiveAnalysis,
   ): Promise<void> {
     const userMessage: ChatMessage = {
       role: 'user',
@@ -329,16 +402,96 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
       role: 'assistant',
       content: response.response,
       timestamp: Date.now(),
-      toolCalls: response.executedTools?.map(tool => ({
+      toolCalls: response.executedTools?.map((tool) => ({
         name: tool.name,
         args: tool.args,
         result: tool.result,
-        toolCallId: `${tool.name}_${Date.now()}`
+        toolCallId: `${tool.name}_${Date.now()}`,
       })),
       analysis,
     };
 
-    this.conversationService.updateHistory(request.userId, userMessage, request.sessionId);
-    this.conversationService.updateHistory(request.userId, assistantMessage, request.sessionId);
+    this.conversationService.updateHistory(
+      request.userId,
+      userMessage,
+      request.sessionId,
+    );
+    this.conversationService.updateHistory(
+      request.userId,
+      assistantMessage,
+      request.sessionId,
+    );
   }
 }
+
+// 1. Request Reception
+//    ├── Extract: userQuery, userId, conversationHistory, sessionId
+//    ├── Validate: Required fields (userQuery, userId)
+//    ├── Initialize: Pinecone index, services, performance monitoring
+//    └── Retrieve: Existing conversation history or use provided history
+
+// 2. Comprehensive Analysis Service
+//    ├── Cache Check: Query hash-based analysis caching
+//    ├── Context Building:
+//    │   ├── Recent conversation context (last 3 messages)
+//    │   ├── Previous conversation summary
+//    │   └── Current query analysis
+//    ├── LLM Analysis (generateObject):
+//    │   ├── Query Understanding & Confidence (0-1 score)
+//    │   ├── Execution Planning (steps, dependencies, complexity)
+//    │   ├── Information Gathering (missing info, clarifications)
+//    │   ├── Conversation Summary Update (intent, state, entities)
+//    │   └── Tool & App Recommendations (prioritized apps/tools)
+//    └── Cache Result: Store analysis for future use
+
+// 3. High-Confidence Tool Execution
+//    ├── Initial Tool Routing:
+//    │   ├── Call /api/route-apps for initial tool identification
+//    │   └── Extract specific toolNames from routing response
+//    ├── Tool Preparation Service:
+//    │   ├── App Prioritization (based on analysis recommendations)
+//    │   ├── Connection Validation:
+//    │   │   ├── Check user-app connection mapping
+//    │   │   ├── Validate connection status (ACTIVE/INITIATED)
+//    │   │   └── Cache connection status
+//    │   ├── Tool Selection Strategy:
+//    │   │   ├── Priority 1: Use specific tools from initial routing
+//    │   │   ├── Priority 2: Semantic search via /api/tools/search
+//    │   │   └── Cache tool search results
+//    │   └── Tool Fetching: Get full tool definitions from Composio
+//    ├── Tool Execution:
+//    │   ├── Build optimized prompt with execution context
+//    │   ├── Execute generateText with tools (maxSteps: 8)
+//    │   ├── Process tool results and check for failures
+//    │   └── Update execution context with step results
+//    └── Response Generation: Success/failure messages with details
+
+// 4. Medium-Confidence Clarification
+//    ├── Check Clarification Needs:
+//    │   ├── If clarifications needed: Return structured questions
+//    │   └── If no clarifications: Generate conversational response
+//    ├── Simple LLM Generation:
+//    │   ├── Build simplified prompt
+//    │   └── Generate response without tools
+//    └── Return clarification or conversational response
+
+// 5. Low-Confidence Conversational
+//    ├── Conversational Prompt Building
+//    ├── Generate helpful response with higher temperature
+//    └── Ask for clarification politely
+
+// 6. History Update
+//    ├── Create User Message:
+//    │   ├── Role: "user"
+//    │   ├── Content: userQuery
+//    │   └── Timestamp: current time
+//    ├── Create Assistant Message:
+//    │   ├── Role: "assistant"
+//    │   ├── Content: finalResponseText
+//    │   ├── ToolCalls: executed tools with results
+//    │   └── Analysis: complete analysis object
+//    ├── Update Conversation Store:
+//    │   ├── Add both messages to history
+//    │   ├── Trim history if > MAX_CONVERSATION_HISTORY (10)
+//    │   └── Use session-based or user-based keys
+//    └── Cache conversation state
