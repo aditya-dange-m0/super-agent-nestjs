@@ -10,6 +10,15 @@ import {
 } from '@nestjs/common';
 import { LlmRouterService, LLMRoutingResponse } from './llm-router.service'; // Import the service and its response type
 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+} from '@nestjs/swagger';
+import { RouteAppsRequestDto } from './dto/route-apps-request.dto';
+import { RouteAppsResponseDto } from './dto/route-apps-response.dto';
+
 // Define DTO for the request body
 interface RouteAppsRequestBody {
   userQuery: string;
@@ -21,6 +30,7 @@ interface RouteAppsAPIResponse extends LLMRoutingResponse {
   error?: string;
 }
 
+@ApiTags('LLM Router')
 @Controller('route-apps') // Base route for this controller
 export class LlmRouterController {
   constructor(private readonly llmRouterService: LlmRouterService) {}
@@ -31,8 +41,13 @@ export class LlmRouterController {
    * @param body The request body containing the userQuery.
    * @returns An object with relevant app names and tool names, plus a message.
    */
-  @Post() // Handles POST requests to the base route /route-apps
-  @HttpCode(HttpStatus.OK) // Return 200 OK on success
+  @Post()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Route user query to apps and tools via LLM' })
+  @ApiBody({ type: RouteAppsRequestDto })
+  @ApiResponse({ status: 200, type: RouteAppsResponseDto })
+  @ApiResponse({ status: 400, description: 'Missing userQuery in request body' })
+  @ApiResponse({ status: 500, description: 'Failed to route apps' })
   async routeApps(@Body() body: RouteAppsRequestBody): Promise<RouteAppsAPIResponse> {
     const { userQuery } = body;
 

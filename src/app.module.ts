@@ -9,13 +9,21 @@ import { LlmRouterModule } from './llm-router/llm-router.module';
 import { LlmRouterService } from './llm-router/llm-router.service';
 import { ConfigModule } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
+import { DatabaseModule } from './database/database.module';
 
 
 @Module({
-  imports: [ConfigModule.forRoot({
+  imports: [
+    ConfigModule.forRoot({
       isGlobal: true, // Makes ConfigModule available everywhere
       envFilePath: '.env',
-    }),ComposioModule, ToolsModule, LlmRouterModule, ChatModule],
+    }),
+    DatabaseModule,
+    ComposioModule, 
+    ToolsModule, 
+    LlmRouterModule, 
+    ChatModule
+  ],
   controllers: [AppController, ToolsController],
   providers: [AppService, PineconeService, LlmRouterService],
 })

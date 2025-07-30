@@ -11,6 +11,9 @@ import {
 import { PineconeService } from '../pinecone/pinecone.service';
 import { ComposioService } from '../composio/composio.service'; // Assuming ComposioService is in this path
 import { ToolsObject } from '../types/types'; // Adjust path as needed
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { IngestRequestDto } from './dto/ingest-request.dto';
+import { SearchRequestDto } from './dto/search-request.dto';
 
 // Define DTOs (Data Transfer Objects) for request bodies
 interface IngestRequestBody {
@@ -23,6 +26,7 @@ interface SearchRequestBody {
   topK?: number;
 }
 
+@ApiTags('Tools')
 @Controller('tools') // Base route for all endpoints in this controller
 export class ToolsController {
   constructor(
@@ -37,7 +41,12 @@ export class ToolsController {
    * @returns A success message or an error.
    */
   @Post('ingest')
-  @HttpCode(HttpStatus.OK) // Return 200 OK on success
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ingest Composio tools into Pinecone' })
+  @ApiBody({ type: IngestRequestDto })
+  @ApiResponse({ status: 200, description: 'Successfully ingested tools' })
+  @ApiResponse({ status: 400, description: 'Missing appName in request body' })
+  @ApiResponse({ status: 500, description: 'Failed to ingest tools' })
   async ingestTools(@Body() body: IngestRequestBody) {
     const { appName } = body;
 
@@ -68,7 +77,12 @@ export class ToolsController {
    * @returns An object with relevant tool names or an error.
    */
   @Post('search')
-  @HttpCode(HttpStatus.OK) // Return 200 OK on success
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Search tools from Pinecone using semantic search' })
+  @ApiBody({ type: SearchRequestDto })
+  @ApiResponse({ status: 200, description: 'Successfully found tools' })
+  @ApiResponse({ status: 400, description: 'Invalid request parameters' })
+  @ApiResponse({ status: 500, description: 'Failed to search for tools' })
   async searchTools(@Body() body: SearchRequestBody) {
     const { appName, userQuery, topK } = body;
 

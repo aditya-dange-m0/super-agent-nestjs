@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum AppConnectionStatus {
+  INITIATED
+  ACTIVE
+  INACTIVE
+  FAILED
+  EXPIRED
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  sessions       Session[]
+  appConnections AppConnection[]
+  UserPreference UserPreference?
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  sessionToken String?  @unique
+  startedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActivity DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  // Dynamic conversation summary for LLM context
+  conversationSummary Json? // Stores ComprehensiveAnalysis or conversation state
+
+  // Relationships
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@map("sessions")
+  @@index([userId, lastActivity])
+  @@index([userId, isActive])
+}
+
+model Conversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @db.Uuid
+  title     String? // Optional conversation title
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  session  Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @db.Uuid
+  role           Role
+  content        String   @db.Text
+  timestamp      DateTime @default(now())
+
+  // Optional fields for rich message data
+  toolCalls Json? // Store tool execution data
+  analysis  Json? // Store analysis data if needed
+  metadata  Json? // Additional metadata (tokens, model used, etc.)
+
+  // Relationships
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+  @@index([conversationId, timestamp])
+  @@index([timestamp])
+}
+
+model AppConnection {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  appName     String // e.g., "GMAIL", "NOTION", "GOOGLECALENDAR"
+  accountId   String // Connection ID from Composio
+  status      AppConnectionStatus @default(INACTIVE)
+  connectedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Optional connection metadata
+  metadata Json? // Store additional connection info
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, appName]) // Each user can only have one connection per app
+  @@map("app_connections")
+  @@index([userId, status])
+  @@index([status])
+}
+
+// Optional: User preferences/settings
+model UserPreference {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid
+  preferences Json // Store user preferences as JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}

@@ -9,6 +9,7 @@ import { ConversationService } from './services/conversation.service';
 import { ExecutionContextService } from './services/execution-context.service';
 import { PineconeService } from '../pinecone/pinecone.service';
 import { LlmRouterService } from '../llm-router/llm-router.service';
+import { DatabaseIntegrationService } from '../database/services/database-integration.service';
 import {
   ChatRequest,
   ChatResponse,
@@ -32,6 +33,7 @@ export class ChatService {
     private readonly pineconeService: PineconeService,
     private readonly llmRouterService: LlmRouterService, // Fixed naming
     private readonly configService: ConfigService,
+    private readonly databaseIntegrationService: DatabaseIntegrationService,
   ) {
     this.maxAgentSteps = this.configService.get<number>('MAX_AGENT_STEPS', 8);
   }
@@ -45,13 +47,28 @@ export class ChatService {
         `🚀 Production Chat Request - User: ${userId}, Query: "${userQuery.substring(0, 100)}...", Session: ${sessionId || 'N/A'}`,
       );
 
+      // Initialize database context
+      const dbContext = await this.databaseIntegrationService.initializeContext(
+        userId,
+        sessionId,
+      );
+
       // Initialize Pinecone - using the lifecycle method from your service
       await this.pineconeService.onModuleInit();
 
-      // Get conversation history
-      const existingHistory =
-        conversationHistory ||
-        this.conversationService.getHistory(userId, sessionId);
+      // Get conversation history from database
+      let existingHistory = conversationHistory;
+      if (!existingHistory && dbContext.sessionId) {
+        existingHistory = await this.databaseIntegrationService.getConversationHistory(
+          dbContext.sessionId,
+          20, // Get last 50 messages
+        );
+      }
+
+      // Fallback to in-memory history if database fails
+      if (!existingHistory) {
+        existingHistory = this.conversationService.getHistory(userId, sessionId);
+      }
 
       const lastSummary =
         existingHistory.length > 0
@@ -411,6 +428,7 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
       analysis,
     };
 
+    // Update in-memory conversation history
     this.conversationService.updateHistory(
       request.userId,
       userMessage,
@@ -421,6 +439,24 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
       assistantMessage,
       request.sessionId,
     );
+
+    // Save to database
+    try {
+      const dbContext = await this.databaseIntegrationService.initializeContext(
+        request.userId,
+        request.sessionId,
+      );
+
+      await this.databaseIntegrationService.completeConversationFlow(
+        dbContext,
+        request.userQuery,
+        response,
+        analysis,
+      );
+    } catch (error) {
+      this.logger.error('Error saving conversation to database:', error);
+      // Don't throw error to avoid breaking the chat flow
+    }
   }
 }
 

@@ -1,17 +1,19 @@
-import { 
-  Controller, 
-  Post, 
-  Body, 
-  HttpException, 
+import {
+  Controller,
+  Post,
+  Body,
+  HttpException,
   HttpStatus,
   Logger,
-  UseInterceptors
+  UseInterceptors,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { ChatResponse } from './interfaces/chat.interfaces';
 import { PerformanceInterceptor } from '../common/interceptors/performance.interceptor';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 
+@ApiTags('Super Agent Chat')
 @Controller('super-agent')
 @UseInterceptors(PerformanceInterceptor)
 export class ChatController {
@@ -20,20 +22,30 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Post('chat')
-  async processChat(@Body() chatRequest: ChatRequestDto): Promise<ChatResponse> {
+  @ApiOperation({ summary: 'Process chat query using Super Agent' })
+  @ApiBody({ type: ChatRequestDto })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 400, description: 'Missing userQuery or userId' })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error during chat processing',
+  })
+  async processChat(
+    @Body() chatRequest: ChatRequestDto,
+  ): Promise<ChatResponse> {
     const startTime = Date.now();
-    
+
     try {
       const { userQuery, userId, conversationHistory, sessionId } = chatRequest;
 
       this.logger.log(
-        `🚀 Chat Request - User: ${userId}, Query: "${userQuery.substring(0, 100)}...", Session: ${sessionId || 'N/A'}`
+        `🚀 Chat Request - User: ${userId}, Query: "${userQuery.substring(0, 100)}...", Session: ${sessionId || 'N/A'}`,
       );
 
       if (!userQuery?.trim() || !userId?.trim()) {
         throw new HttpException(
           'Missing userQuery or userId in request body.',
-          HttpStatus.BAD_REQUEST
+          HttpStatus.BAD_REQUEST,
         );
       }
 
@@ -41,7 +53,7 @@ export class ChatController {
         userQuery,
         userId,
         conversationHistory,
-        sessionId
+        sessionId,
       });
 
       const processingTime = Date.now() - startTime;
@@ -58,7 +70,7 @@ export class ChatController {
 
       throw new HttpException(
         'I encountered an error while processing your request. Please try again.',
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

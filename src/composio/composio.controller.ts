@@ -2,12 +2,22 @@ import { Controller, Post, Body, HttpException, HttpStatus } from '@nestjs/commo
 import { ComposioService } from './composio.service';
 import { ComposioInitiateDto } from './dto/composio-initiate.dto';
 import { ComposioCallbackDto } from './dto/composio-callback.dto';
-
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+} from '@nestjs/swagger';
+@ApiTags('Composio')
 @Controller('composio')
 export class ComposioController {
   constructor(private readonly composioService: ComposioService) {}
 
   @Post('callback')
+  @ApiOperation({ summary: 'Handle Composio callback after connection attempt' })
+  @ApiBody({ type: ComposioCallbackDto })
+  @ApiResponse({ status: 200, description: 'Connection status received successfully' })
+  @ApiResponse({ status: 500, description: 'Failed to activate connection' })
   async handleCallback(@Body() body: ComposioCallbackDto) {
     try {
       const { connectedAccountId } = body;
@@ -32,6 +42,10 @@ export class ComposioController {
   }
 
   @Post('initiate')
+  @ApiOperation({ summary: 'Initiate a new connection to Composio for a specific app' })
+  @ApiBody({ type: ComposioInitiateDto })
+  @ApiResponse({ status: 200, description: 'Connection initiation successful with redirectUrl or message' })
+  @ApiResponse({ status: 500, description: 'Failed to initiate connection' })
   async initiateConnection(@Body() body: ComposioInitiateDto) {
     try {
       const { appName } = body;
