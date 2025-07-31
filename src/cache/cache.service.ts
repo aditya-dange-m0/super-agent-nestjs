@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -74,7 +79,11 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async set(key: string, value: any, ttlSeconds: number = this.cacheTtl): Promise<void> {
+  async set(
+    key: string,
+    value: any,
+    ttlSeconds: number = this.cacheTtl,
+  ): Promise<void> {
     try {
       await this.redis.setex(key, ttlSeconds, JSON.stringify(value));
     } catch (error) {
@@ -93,7 +102,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async mset(keyValuePairs: { key: string; value: any; ttl?: number }[]): Promise<void> {
+  async mset(
+    keyValuePairs: { key: string; value: any; ttl?: number }[],
+  ): Promise<void> {
     if (keyValuePairs.length === 0) return;
     try {
       const pipeline = this.redis.pipeline();
@@ -117,7 +128,10 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
   // Specialized cache methods from your original code
 
   // Tool search caching
-  async getCachedToolSearch(appName: string, query: string): Promise<string[] | null> {
+  async getCachedToolSearch(
+    appName: string,
+    query: string,
+  ): Promise<string[] | null> {
     const key = `tool_search:${appName}:${this.hashString(query)}`;
     const cached = await this.get<string[]>(key);
     if (cached) {
@@ -128,7 +142,11 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     return null;
   }
 
-  async setCachedToolSearch(appName: string, query: string, tools: string[]): Promise<void> {
+  async setCachedToolSearch(
+    appName: string,
+    query: string,
+    tools: string[],
+  ): Promise<void> {
     const key = `tool_search:${appName}:${this.hashString(query)}`;
     await this.set(key, tools);
     this.logger.log(`Cache SET: Tool search for ${appName}:${query}`);
@@ -164,14 +182,19 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     return null;
   }
 
-  async setCachedConnectionStatus(connectionId: string, status: any): Promise<void> {
+  async setCachedConnectionStatus(
+    connectionId: string,
+    status: any,
+  ): Promise<void> {
     const key = `connection_status:${connectionId}`;
     await this.set(key, status);
     this.logger.log(`Cache SET: Connection status for ${connectionId}`);
   }
 
   // Analysis caching
-  async getCachedAnalysis(queryHash: string): Promise<ComprehensiveAnalysis | null> {
+  async getCachedAnalysis(
+    queryHash: string,
+  ): Promise<ComprehensiveAnalysis | null> {
     const key = `analysis:${queryHash}`;
     const cached = await this.get<ComprehensiveAnalysis>(key);
     if (cached) {
@@ -182,7 +205,10 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     return null;
   }
 
-  async setCachedAnalysis(queryHash: string, analysis: ComprehensiveAnalysis): Promise<void> {
+  async setCachedAnalysis(
+    queryHash: string,
+    analysis: ComprehensiveAnalysis,
+  ): Promise<void> {
     const key = `analysis:${queryHash}`;
     await this.set(key, analysis);
     this.logger.log(`Cache SET: Analysis for hash ${queryHash}`);
@@ -190,9 +216,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
 
   // Helper methods
   private hashString(str: string): string {
-    return Buffer.from(str)
-      .toString('base64')
-      .replace(/[/+=]/g, '_');
+    return Buffer.from(str).toString('base64').replace(/[/+=]/g, '_');
   }
 
   // Health check
@@ -200,7 +224,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       const pingResult = await this.redis.ping();
       const connectionStatus = this.redis.status;
-      
+
       return {
         status: pingResult === 'PONG' ? 'healthy' : 'unhealthy',
         connection: connectionStatus,

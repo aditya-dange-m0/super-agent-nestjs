@@ -5,7 +5,7 @@ export const comprehensiveAnalysisSchema = z.object({
   isQueryClear: z.boolean(),
   confidenceScore: z.number().min(0).max(1),
   requiresToolExecution: z.boolean(),
-  
+
   executionSteps: z.array(
     z.object({
       stepNumber: z.number(),
@@ -15,17 +15,17 @@ export const comprehensiveAnalysisSchema = z.object({
       toolCategory: z.string(),
       dependencies: z.array(z.number()),
       priority: z.enum(['critical', 'high', 'medium', 'low']).default('medium'),
-    })
+    }),
   ),
   estimatedComplexity: z.enum(['low', 'medium', 'high']),
   requiresSequentialExecution: z.boolean(),
-  
+
   needsInfoGathering: z.boolean(),
   missingInformation: z.array(z.string()),
   searchQueries: z.array(z.string()),
   clarificationNeeded: z.array(z.string()),
   canProceedWithDefaults: z.boolean(),
-  
+
   conversationSummary: z.object({
     currentIntent: z.string(),
     contextualDetails: z.object({
@@ -46,18 +46,18 @@ export const comprehensiveAnalysisSchema = z.object({
         type: z.string(),
         value: z.string(),
         confidence: z.number().min(0).max(1),
-      })
+      }),
     ),
     nextExpectedAction: z.string(),
     topicShifts: z.array(z.string()),
   }),
-  
+
   recommendedApps: z.array(z.string()),
   toolPriorities: z.array(
     z.object({
       appName: z.string(),
       priority: z.number().min(1).max(10),
       reasoning: z.string(),
-    })
+    }),
   ),
 });

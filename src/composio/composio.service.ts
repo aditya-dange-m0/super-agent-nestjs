@@ -2,6 +2,7 @@
 import { Injectable } from '@nestjs/common';
 import { VercelAIToolSet, ConnectionRequest } from 'composio-core';
 import { v4 as uuidv4 } from 'uuid';
+import { AppConnectionDbService } from '../database/services/app-connection-db.service';
 
 @Injectable()
 export class ComposioService {
@@ -10,12 +11,10 @@ export class ComposioService {
   // Private property to store the Composio API key
   private readonly COMPOSIO_API_KEY: string;
 
-  // Mock database for user connections (for POC purposes, replace with a real DB in production)
-  private mockUserConnections: { [userId: string]: { [appName: string]: string } } = {};
-
-  constructor() {
+  constructor(private readonly appConnectionDbService: AppConnectionDbService) {
     // Initialize the API key from environment variables or use a default
-    this.COMPOSIO_API_KEY = process.env.COMPOSIO_API_KEY || 'sh6ezs034ez0pxtd7akxs';
+    this.COMPOSIO_API_KEY =
+      process.env.COMPOSIO_API_KEY || 'sh6ezs034ez0pxtd7akxs';
 
     // Log an error if the API key is not found
     if (!this.COMPOSIO_API_KEY) {
@@ -34,46 +33,6 @@ export class ComposioService {
    */
   private generateUUID(): string {
     return uuidv4();
-  }
-
-  /**
-   * Saves a user's connected account ID for a specific application in the mock database.
-   * @param userId The ID of the user.
-   * @param appName The name of the application.
-   * @param connectedAccountId The connected account ID to save.
-   */
-  private async saveUserConnection(
-    userId: string,
-    appName: string,
-    connectedAccountId: string,
-  ): Promise<void> {
-    if (!this.mockUserConnections[userId]) {
-      this.mockUserConnections[userId] = {};
-    }
-    this.mockUserConnections[userId][appName] = connectedAccountId;
-    console.log(
-      `[Mock DB] Saved connection for user '${userId}', app '${appName}': ${connectedAccountId}`,
-    );
-    console.log('Current mockUserConnections:', this.mockUserConnections);
-  }
-
-  /**
-   * Retrieves a user's connected account ID for a specific application from the mock database.
-   * @param userId The ID of the user.
-   * @param appName The name of the application.
-   * @returns The connected account ID or null if not found.
-   */
-  private async getUserConnection(
-    userId: string,
-    appName: string,
-  ): Promise<string | null> {
-    const connectedAccountId = this.mockUserConnections[userId]?.[appName] || null;
-    console.log(
-      `[Mock DB] Retrieved connection for user '${userId}', app '${appName}': ${
-        connectedAccountId ? connectedAccountId : 'Not Found'
-      }`,
-    );
-    return connectedAccountId;
   }
 
   /**
@@ -102,20 +61,22 @@ export class ComposioService {
         `Initiating connection to ${appName} for entity: '${entityId}'...`,
       );
       // Call the Composio API to initiate the connection
-      const initialConnectedAccount = await this.toolset.connectedAccounts.initiate({
-        appName: appName,
-        entityId: entityId,
-      });
+      const initialConnectedAccount =
+        await this.toolset.connectedAccounts.initiate({
+          appName: appName,
+          entityId: entityId,
+        });
 
-      // Save the connected account ID if available
+      // Save the connected account ID to DB with status 'INITIATED'
       if (initialConnectedAccount.connectedAccountId) {
-        await this.saveUserConnection(
+        await this.appConnectionDbService.upsertConnection(
           entityId,
           appName,
           initialConnectedAccount.connectedAccountId,
+          'INITIATED',
+          { status: 'INITIATED' },
         );
       }
-      
 
       console.log(
         `Initiated Composio connection for ${appName} for user ${entityId}. Redirect URL: ${initialConnectedAccount.redirectUrl}`,
@@ -141,6 +102,24 @@ export class ComposioService {
         }`,
       );
     }
+  }
+
+  /**
+   * Updates the app connection status to 'ACTIVE' after callback confirmation.
+   */
+  public async confirmComposioConnection(
+    userId: string,
+    appName: string,
+    connectedAccountId: string,
+  ): Promise<void> {
+    // Update the connection status to 'ACTIVE' in the DB
+    await this.appConnectionDbService.upsertConnection(
+      userId,
+      appName,
+      connectedAccountId,
+      'ACTIVE',
+      { status: 'ACTIVE' },
+    );
   }
 
   /**
@@ -230,7 +209,7 @@ export class ComposioService {
    * @returns An object containing the fetched Composio tools.
    * @throws Error if Composio API key is not configured or tool fetching fails.
    */
-  public async getComposioAppTools(appName: string): Promise<Object> {
+  public async getComposioAppTools(appName: string): Promise<object> {
     if (!this.COMPOSIO_API_KEY) {
       throw new Error('Composio API key is not configured.');
     }
@@ -260,14 +239,17 @@ export class ComposioService {
   public async getComposioTool(
     tools: string[],
     userId: string,
-  ): Promise<Object> {
+  ): Promise<object> {
     if (!this.COMPOSIO_API_KEY) {
       throw new Error('Composio API key is not configured.');
     }
 
     try {
       // Call the Composio API to get specific tools by action names and user ID
-      const fetchedTools = await this.toolset.getTools({ actions: tools }, userId);
+      const fetchedTools = await this.toolset.getTools(
+        { actions: tools },
+        userId,
+      );
       return fetchedTools;
     } catch (error) {
       console.error(`Error fetching Composio tools: `, error);
@@ -301,14 +283,18 @@ export class ComposioService {
       // specific to your POC setup. In a real scenario, you might pass the
       // actual userId or handle the redirectUri differently.
       const result = await this.initiateComposioConnection('default', appName);
-      const connectedID = await this.toolset.connectedAccounts.reinitiateConnection({
-        connectedAccountId,
-        data: {}, // Additional data if required for re-initiation
-        redirectUri: result.redirectUrl || undefined, // Use the redirect URL from the initial connection
-      });
+      const connectedID =
+        await this.toolset.connectedAccounts.reinitiateConnection({
+          connectedAccountId,
+          data: {}, // Additional data if required for re-initiation
+          redirectUri: result.redirectUrl || undefined, // Use the redirect URL from the initial connection
+        });
       return connectedID;
     } catch (error) {
-      console.error(`Error enabling Composio connection for app ${appName}:`, error);
+      console.error(
+        `Error enabling Composio connection for app ${appName}:`,
+        error,
+      );
       throw new Error(
         `Failed to enable Composio connection for app ${appName}: ${
           error instanceof Error ? error.message : String(error)
@@ -376,3 +362,43 @@ export class ComposioService {
     }
   }
 }
+
+// /**
+//    * Saves a user's connected account ID for a specific application in the mock database.
+//    * @param userId The ID of the user.
+//    * @param appName The name of the application.
+//    * @param connectedAccountId The connected account ID to save.
+//    */
+// private async saveUserConnection(
+//   userId: string,
+//   appName: string,
+//   connectedAccountId: string,
+// ): Promise<void> {
+//   if (!this.mockUserConnections[userId]) {
+//     this.mockUserConnections[userId] = {};
+//   }
+//   this.mockUserConnections[userId][appName] = connectedAccountId;
+//   console.log(
+//     `[Mock DB] Saved connection for user '${userId}', app '${appName}': ${connectedAccountId}`,
+//   );
+//   console.log('Current mockUserConnections:', this.mockUserConnections);
+// }
+
+// /**
+//  * Retrieves a user's connected account ID for a specific application from the mock database.
+//  * @param userId The ID of the user.
+//  * @param appName The name of the application.
+//  * @returns The connected account ID or null if not found.
+//  */
+// private async getUserConnection(
+//   userId: string,
+//   appName: string,
+// ): Promise<string | null> {
+//   const connectedAccountId = this.mockUserConnections[userId]?.[appName] || null;
+//   console.log(
+//     `[Mock DB] Retrieved connection for user '${userId}', app '${appName}': ${
+//       connectedAccountId ? connectedAccountId : 'Not Found'
+//     }`,
+//   );
+//   return connectedAccountId;
+// }

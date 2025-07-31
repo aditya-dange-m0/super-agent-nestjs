@@ -21,18 +21,20 @@ export class SessionDbService {
    * Find or create a session with caching and fallback
    */
   async findOrCreateSession(
-    userId: string, 
-    sessionId?: string
+    userId: string,
+    sessionId?: string,
   ): Promise<Session | null> {
     try {
       // If no sessionId provided, generate a new one
       if (!sessionId) {
         sessionId = this.generateSessionId();
-        this.logger.log(`Generated new session ID: ${sessionId} for user ${userId}`);
+        this.logger.log(
+          `Generated new session ID: ${sessionId} for user ${userId}`,
+        );
       }
 
       const cacheKey = `session:${sessionId}`;
-      
+
       // Check cache first
       const cached = await this.cache.get<Session>(cacheKey);
       if (cached) {
@@ -40,7 +42,9 @@ export class SessionDbService {
         return cached;
       }
 
-      this.logger.debug(`Cache MISS: Session ${sessionId}, checking database...`);
+      this.logger.debug(
+        `Cache MISS: Session ${sessionId}, checking database...`,
+      );
 
       // Ensure user exists first
       await this.userDbService.findOrCreateUser(userId);
@@ -49,7 +53,7 @@ export class SessionDbService {
       const session = await this.prisma.safeExecute(async () => {
         return await this.prisma.session.upsert({
           where: { id: sessionId },
-          update: { 
+          update: {
             lastActivity: new Date(),
             updatedAt: new Date(),
             isActive: true, // Reactivate if was inactive
@@ -66,11 +70,15 @@ export class SessionDbService {
       if (session) {
         // Cache the result
         await this.cache.set(cacheKey, session, this.SESSION_CACHE_TTL);
-        this.logger.log(`Session ${sessionId} found/created and cached for user ${userId}`);
+        this.logger.log(
+          `Session ${sessionId} found/created and cached for user ${userId}`,
+        );
         return session;
       } else {
         // Database unavailable, return fallback session object
-        this.logger.warn(`Database unavailable, returning fallback session for ${sessionId}`);
+        this.logger.warn(
+          `Database unavailable, returning fallback session for ${sessionId}`,
+        );
         const fallbackSession = {
           id: sessionId,
           userId,
@@ -87,8 +95,11 @@ export class SessionDbService {
         return fallbackSession;
       }
     } catch (error) {
-      this.logger.error(`Error in findOrCreateSession for ${sessionId}:`, error);
-      
+      this.logger.error(
+        `Error in findOrCreateSession for ${sessionId}:`,
+        error,
+      );
+
       // Return fallback session object
       const fallbackSessionId = sessionId || this.generateSessionId();
       const fallbackSession = {
@@ -110,8 +121,8 @@ export class SessionDbService {
    * Update session summary with ComprehensiveAnalysis
    */
   async updateSessionSummary(
-    sessionId: string, 
-    analysis: ComprehensiveAnalysis
+    sessionId: string,
+    analysis: ComprehensiveAnalysis,
   ): Promise<boolean> {
     try {
       const result = await this.prisma.safeExecute(async () => {
@@ -132,11 +143,16 @@ export class SessionDbService {
         this.logger.log(`Session summary updated for ${sessionId}`);
         return true;
       } else {
-        this.logger.warn(`Database unavailable, session summary not persisted for ${sessionId}`);
+        this.logger.warn(
+          `Database unavailable, session summary not persisted for ${sessionId}`,
+        );
         return false;
       }
     } catch (error) {
-      this.logger.error(`Error updating session summary for ${sessionId}:`, error);
+      this.logger.error(
+        `Error updating session summary for ${sessionId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -144,9 +160,11 @@ export class SessionDbService {
   /**
    * Get session summary for LLM context
    */
-  async getSessionSummary(sessionId: string): Promise<ComprehensiveAnalysis | null> {
+  async getSessionSummary(
+    sessionId: string,
+  ): Promise<ComprehensiveAnalysis | null> {
     const cacheKey = `session_summary:${sessionId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<ComprehensiveAnalysis>(cacheKey);
@@ -155,13 +173,15 @@ export class SessionDbService {
         return cached;
       }
 
-      this.logger.debug(`Cache MISS: Session summary ${sessionId}, checking database...`);
+      this.logger.debug(
+        `Cache MISS: Session summary ${sessionId}, checking database...`,
+      );
 
       // Query database
       const session = await this.prisma.safeExecute(async () => {
         return await this.prisma.session.findUnique({
           where: { id: sessionId },
-          select: { 
+          select: {
             conversationSummary: true,
             isActive: true,
           },
@@ -169,18 +189,26 @@ export class SessionDbService {
       });
 
       if (session && session.conversationSummary) {
-        const summary = session.conversationSummary as unknown as ComprehensiveAnalysis;
-        
+        const summary =
+          session.conversationSummary as unknown as ComprehensiveAnalysis;
+
         // Cache the result
         await this.cache.set(cacheKey, summary, this.SUMMARY_CACHE_TTL);
-        this.logger.debug(`Session summary ${sessionId} retrieved from database and cached`);
+        this.logger.debug(
+          `Session summary ${sessionId} retrieved from database and cached`,
+        );
         return summary;
       }
 
-      this.logger.debug(`No conversation summary found for session ${sessionId}`);
+      this.logger.debug(
+        `No conversation summary found for session ${sessionId}`,
+      );
       return null;
     } catch (error) {
-      this.logger.error(`Error getting session summary for ${sessionId}:`, error);
+      this.logger.error(
+        `Error getting session summary for ${sessionId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -190,7 +218,7 @@ export class SessionDbService {
    */
   async getSession(sessionId: string): Promise<Session | null> {
     const cacheKey = `session:${sessionId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<Session>(cacheKey);
@@ -241,14 +269,17 @@ export class SessionDbService {
           cached.updatedAt = new Date();
           await this.cache.set(cacheKey, cached, this.SESSION_CACHE_TTL);
         }
-        
+
         this.logger.debug(`Session activity updated for ${sessionId}`);
         return true;
       }
 
       return false;
     } catch (error) {
-      this.logger.error(`Error updating session activity for ${sessionId}:`, error);
+      this.logger.error(
+        `Error updating session activity for ${sessionId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -257,11 +288,11 @@ export class SessionDbService {
    * Get user's active sessions
    */
   async getUserActiveSessions(
-    userId: string, 
-    limit: number = 10
+    userId: string,
+    limit: number = 10,
   ): Promise<Session[]> {
     const cacheKey = `user_sessions:${userId}:${limit}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<Session[]>(cacheKey);
@@ -271,7 +302,7 @@ export class SessionDbService {
 
       const sessions = await this.prisma.safeExecute(async () => {
         return await this.prisma.session.findMany({
-          where: { 
+          where: {
             userId,
             isActive: true,
           },
@@ -287,7 +318,10 @@ export class SessionDbService {
 
       return [];
     } catch (error) {
-      this.logger.error(`Error getting active sessions for user ${userId}:`, error);
+      this.logger.error(
+        `Error getting active sessions for user ${userId}:`,
+        error,
+      );
       return [];
     }
   }
@@ -358,16 +392,16 @@ export class SessionDbService {
     isActive: boolean;
   } | null> {
     const cacheKey = `session_stats:${sessionId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<{
-      messageCount: number;
-      conversationCount: number;
-      duration: number;
-      lastActivity: Date | null;
-      isActive: boolean;
-    }>(cacheKey);
+        messageCount: number;
+        conversationCount: number;
+        duration: number;
+        lastActivity: Date | null;
+        isActive: boolean;
+      }>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -390,11 +424,13 @@ export class SessionDbService {
       if (sessionWithStats) {
         const messageCount = sessionWithStats.conversations.reduce(
           (total, conv) => total + conv.messages.length,
-          0
+          0,
         );
         const conversationCount = sessionWithStats.conversations.length;
         const duration = Math.floor(
-          (sessionWithStats.lastActivity.getTime() - sessionWithStats.startedAt.getTime()) / 60000
+          (sessionWithStats.lastActivity.getTime() -
+            sessionWithStats.startedAt.getTime()) /
+            60000,
         );
 
         const stats = {
@@ -438,7 +474,9 @@ export class SessionDbService {
       });
 
       if (result) {
-        this.logger.log(`Cleaned up ${result} inactive sessions older than ${olderThanDays} days`);
+        this.logger.log(
+          `Cleaned up ${result} inactive sessions older than ${olderThanDays} days`,
+        );
         return result;
       }
 
@@ -456,7 +494,7 @@ export class SessionDbService {
     updates: Array<{
       sessionId: string;
       summary: ComprehensiveAnalysis;
-    }>
+    }>,
   ): Promise<number> {
     let updated = 0;
 
@@ -466,7 +504,7 @@ export class SessionDbService {
         const batchSize = 50;
         for (let i = 0; i < updates.length; i += batchSize) {
           const batch = updates.slice(i, i + batchSize);
-          
+
           await Promise.all(
             batch.map(async ({ sessionId, summary }) => {
               try {
@@ -479,9 +517,12 @@ export class SessionDbService {
                 });
                 updated++;
               } catch (error) {
-                this.logger.warn(`Failed to update session ${sessionId}:`, error);
+                this.logger.warn(
+                  `Failed to update session ${sessionId}:`,
+                  error,
+                );
               }
-            })
+            }),
           );
         }
         return updated;
@@ -521,7 +562,10 @@ export class SessionDbService {
 
       this.logger.debug(`Cache invalidated for session ${sessionId}`);
     } catch (error) {
-      this.logger.error(`Error invalidating cache for session ${sessionId}:`, error);
+      this.logger.error(
+        `Error invalidating cache for session ${sessionId}:`,
+        error,
+      );
     }
   }
 
@@ -530,7 +574,7 @@ export class SessionDbService {
    */
   async isSessionActive(sessionId: string): Promise<boolean> {
     const cacheKey = `session_active:${sessionId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<boolean>(cacheKey);
@@ -546,13 +590,16 @@ export class SessionDbService {
       });
 
       const isActive = session?.isActive ?? false;
-      
+
       // Cache for shorter time
       await this.cache.set(cacheKey, isActive, 600); // 10 minutes
-      
+
       return isActive;
     } catch (error) {
-      this.logger.error(`Error checking if session ${sessionId} is active:`, error);
+      this.logger.error(
+        `Error checking if session ${sessionId} is active:`,
+        error,
+      );
       return false;
     }
   }

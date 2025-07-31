@@ -56,15 +56,25 @@ export class ToolsController {
 
     try {
       // 1. Fetch the full tool definitions from Composio using the injected service
-      const fullTools = (await this.composioService.getComposioAppTools(appName)) as ToolsObject;
-      console.log(`Fetched ${Object.keys(fullTools).length} tools from Composio for app: ${appName}`);
+      const fullTools = (await this.composioService.getComposioAppTools(
+        appName,
+      )) as ToolsObject;
+      console.log(
+        `Fetched ${Object.keys(fullTools).length} tools from Composio for app: ${appName}`,
+      );
 
       // 2. Ingest these tools into Pinecone using the injected service
-      await this.pineconeService.ingestComposioAppToolsToPinecone(appName, fullTools);
+      await this.pineconeService.ingestComposioAppToolsToPinecone(
+        appName,
+        fullTools,
+      );
 
       return { message: `Successfully ingested tools for app: ${appName}` };
     } catch (error) {
-      console.error(`API Error during tool ingestion for app ${appName}:`, error);
+      console.error(
+        `API Error during tool ingestion for app ${appName}:`,
+        error,
+      );
       // Re-throw as a NestJS HTTP exception
       throw new InternalServerErrorException('Failed to ingest tools.');
     }
@@ -88,21 +98,26 @@ export class ToolsController {
 
     // Basic validation for required parameters
     if (!appName || !userQuery) {
-      throw new BadRequestException('Missing appName or userQuery in request body.');
+      throw new BadRequestException(
+        'Missing appName or userQuery in request body.',
+      );
     }
 
     // Optional: Validate topK if needed, although PineconeService handles default
     if (topK !== undefined && (typeof topK !== 'number' || topK <= 0)) {
-       throw new BadRequestException('Invalid topK parameter. Must be a positive integer.');
+      throw new BadRequestException(
+        'Invalid topK parameter. Must be a positive integer.',
+      );
     }
 
     try {
       // Perform semantic search using the injected PineconeService
-      const relevantToolNames: string[] = await this.pineconeService.getComposioAppToolsFromPinecone(
-        appName,
-        userQuery,
-        topK,
-      );
+      const relevantToolNames: string[] =
+        await this.pineconeService.getComposioAppToolsFromPinecone(
+          appName,
+          userQuery,
+          topK,
+        );
 
       return {
         relevantTools: relevantToolNames,

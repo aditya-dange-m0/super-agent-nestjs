@@ -5,7 +5,6 @@ import { LanguageModel } from 'ai';
 import { ConfigService } from '@nestjs/config';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 
-
 export const supportedModels = [
   'openai:gpt-4o-mini',
   'google:gemini-2.0-flash',
@@ -21,7 +20,6 @@ export class ModelProviderService {
   private readonly googleProvider;
   private readonly openaiProvider;
   private readonly openrouterProvider;
-
 
   constructor(private readonly configService: ConfigService) {
     this.googleProvider = createGoogleGenerativeAI({

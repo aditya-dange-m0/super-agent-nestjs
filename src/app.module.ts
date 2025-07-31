@@ -11,7 +11,6 @@ import { ConfigModule } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
 import { DatabaseModule } from './database/database.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -19,10 +18,10 @@ import { DatabaseModule } from './database/database.module';
       envFilePath: '.env',
     }),
     DatabaseModule,
-    ComposioModule, 
-    ToolsModule, 
-    LlmRouterModule, 
-    ChatModule
+    ComposioModule,
+    ToolsModule,
+    LlmRouterModule,
+    ChatModule,
   ],
   controllers: [AppController, ToolsController],
   providers: [AppService, PineconeService, LlmRouterService],

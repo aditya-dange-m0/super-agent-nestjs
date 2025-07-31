@@ -17,12 +17,12 @@ export class UserDbService {
    * Find or create a user by ID with caching
    */
   async findOrCreateUser(
-    userId: string, 
-    email?: string, 
-    name?: string
+    userId: string,
+    email?: string,
+    name?: string,
   ): Promise<User | null> {
     const cacheKey = `user:${userId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<User>(cacheKey);
@@ -37,16 +37,16 @@ export class UserDbService {
       const user = await this.prisma.safeExecute(async () => {
         return await this.prisma.user.upsert({
           where: { id: userId },
-          update: { 
+          update: {
             updatedAt: new Date(),
             // Update email/name if provided
             ...(email && { email }),
             ...(name && { name }),
           },
-          create: { 
-            id: userId, 
-            email: email || '', 
-            name: name || null 
+          create: {
+            id: userId,
+            email: email || '',
+            name: name || null,
           },
         });
       });
@@ -58,7 +58,9 @@ export class UserDbService {
         return user;
       } else {
         // Database unavailable, return minimal user object
-        this.logger.warn(`Database unavailable, returning fallback user for ${userId}`);
+        this.logger.warn(
+          `Database unavailable, returning fallback user for ${userId}`,
+        );
         const fallbackUser = {
           id: userId,
           email: email || null,
@@ -73,7 +75,7 @@ export class UserDbService {
       }
     } catch (error) {
       this.logger.error(`Error in findOrCreateUser for ${userId}:`, error);
-      
+
       // Return fallback user object
       const fallbackUser = {
         id: userId,
@@ -92,7 +94,7 @@ export class UserDbService {
    */
   async getUserById(userId: string): Promise<User | null> {
     const cacheKey = `user:${userId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<User>(cacheKey);
@@ -136,8 +138,8 @@ export class UserDbService {
    * Update user information
    */
   async updateUser(
-    userId: string, 
-    updates: { email?: string; name?: string }
+    userId: string,
+    updates: { email?: string; name?: string },
   ): Promise<User | null> {
     try {
       const user = await this.prisma.safeExecute(async () => {
@@ -174,7 +176,7 @@ export class UserDbService {
     activeConnections: number;
   }> {
     const cacheKey = `user_details:${userId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<{
@@ -236,7 +238,7 @@ export class UserDbService {
    */
   async userExists(userId: string): Promise<boolean> {
     const cacheKey = `user_exists:${userId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<boolean>(cacheKey);
@@ -253,10 +255,10 @@ export class UserDbService {
       });
 
       const result = exists ?? false;
-      
+
       // Cache existence check for shorter time
       await this.cache.set(cacheKey, result, 1800); // 30 minutes
-      
+
       return result;
     } catch (error) {
       this.logger.error(`Error checking if user ${userId} exists:`, error);
@@ -269,7 +271,7 @@ export class UserDbService {
    */
   async getUserByEmail(email: string): Promise<User | null> {
     const cacheKey = `user_email:${email}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<User>(cacheKey);
@@ -334,16 +336,16 @@ export class UserDbService {
     lastActivity: Date | null;
   } | null> {
     const cacheKey = `user_stats:${userId}`;
-    
+
     try {
       // Check cache first
       const cached = await this.cache.get<{
-      totalSessions: number;
-      activeSessions: number;
-      totalMessages: number;
-      appConnections: number;
-      lastActivity: Date | null;
-    }>(cacheKey);
+        totalSessions: number;
+        activeSessions: number;
+        totalMessages: number;
+        appConnections: number;
+        lastActivity: Date | null;
+      }>(cacheKey);
       if (cached) {
         return cached;
       }
@@ -370,16 +372,24 @@ export class UserDbService {
         if (!user) return null;
 
         const totalSessions = user.sessions.length;
-        const activeSessions = user.sessions.filter(s => s.isActive).length;
+        const activeSessions = user.sessions.filter((s) => s.isActive).length;
         const totalMessages = user.sessions.reduce((total, session) => {
-          return total + session.conversations.reduce((convTotal, conv) => {
-            return convTotal + conv._count.messages;
-          }, 0);
+          return (
+            total +
+            session.conversations.reduce((convTotal, conv) => {
+              return convTotal + conv._count.messages;
+            }, 0)
+          );
         }, 0);
-        const appConnections = user.appConnections.filter(conn => conn.status === 'ACTIVE').length;
-        const lastActivity = user.sessions.length > 0 
-          ? new Date(Math.max(...user.sessions.map(s => s.lastActivity.getTime())))
-          : null;
+        const appConnections = user.appConnections.filter(
+          (conn) => conn.status === 'ACTIVE',
+        ).length;
+        const lastActivity =
+          user.sessions.length > 0
+            ? new Date(
+                Math.max(...user.sessions.map((s) => s.lastActivity.getTime())),
+              )
+            : null;
 
         return {
           totalSessions,
@@ -428,20 +438,21 @@ export class UserDbService {
   /**
    * Batch create or update users (useful for migrations or bulk operations)
    */
-  async batchUpsertUsers(users: Array<{
-    id: string;
-    email?: string;
-    name?: string;
-  }>): Promise<number> {
+  async batchUpsertUsers(
+    users: Array<{
+      id: string;
+      email?: string;
+      name?: string;
+    }>,
+  ): Promise<number> {
     let processed = 0;
     try {
-
       const result = await this.prisma.safeExecute(async () => {
         // Process in batches of 100
         const batchSize = 100;
         for (let i = 0; i < users.length; i += batchSize) {
           const batch = users.slice(i, i + batchSize);
-          
+
           await Promise.all(
             batch.map(async (userData) => {
               await this.prisma.user.upsert({
@@ -458,7 +469,7 @@ export class UserDbService {
                 },
               });
               processed++;
-            })
+            }),
           );
         }
         return processed;

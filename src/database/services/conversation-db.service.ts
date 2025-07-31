@@ -16,7 +16,10 @@ export class ConversationDbService {
   /**
    * Get all conversations for a session (most recent first).
    */
-  async getConversationsForSession(sessionId: string, limit: number = 5): Promise<Conversation[]> {
+  async getConversationsForSession(
+    sessionId: string,
+    limit: number = 5,
+  ): Promise<Conversation[]> {
     const cacheKey = `conversations:${sessionId}:${limit}`;
     try {
       const cached = await this.cache.get<Conversation[]>(cacheKey);
@@ -33,7 +36,10 @@ export class ConversationDbService {
       await this.cache.set(cacheKey, conversations || [], this.CONV_CACHE_TTL);
       return conversations || [];
     } catch (error) {
-      this.logger.error(`[Conversation] Error fetching conversations for session ${sessionId}:`, error);
+      this.logger.error(
+        `[Conversation] Error fetching conversations for session ${sessionId}:`,
+        error,
+      );
       return [];
     }
   }
@@ -41,7 +47,10 @@ export class ConversationDbService {
   /**
    * Create a new conversation for this session.
    */
-  async createConversation(sessionId: string, title?: string): Promise<Conversation | null> {
+  async createConversation(
+    sessionId: string,
+    title?: string,
+  ): Promise<Conversation | null> {
     try {
       const conversation = await this.prisma.safeExecute(async () => {
         return await this.prisma.conversation.create({
@@ -54,10 +63,15 @@ export class ConversationDbService {
 
       // Invalidate cache for session's conversations
       await this.cache.delete(`conversations:${sessionId}:5`);
-      this.logger.log(`[Conversation] Created new conversation for session ${sessionId}`);
+      this.logger.log(
+        `[Conversation] Created new conversation for session ${sessionId}`,
+      );
       return conversation || null;
     } catch (error) {
-      this.logger.error(`[Conversation] Error creating conversation for session ${sessionId}:`, error);
+      this.logger.error(
+        `[Conversation] Error creating conversation for session ${sessionId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -70,13 +84,16 @@ export class ConversationDbService {
     try {
       await this.prisma.safeExecute(async () => {
         await this.prisma.conversation.delete({
-          where: { id: conversationId }
+          where: { id: conversationId },
         });
       });
       this.logger.log(`[Conversation] Deleted conversation ${conversationId}`);
       return true;
     } catch (error) {
-      this.logger.error(`[Conversation] Error deleting conversation ${conversationId}:`, error);
+      this.logger.error(
+        `[Conversation] Error deleting conversation ${conversationId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -84,18 +101,26 @@ export class ConversationDbService {
   /**
    * Update the title of a conversation.
    */
-  async updateConversationTitle(conversationId: string, title: string): Promise<boolean> {
+  async updateConversationTitle(
+    conversationId: string,
+    title: string,
+  ): Promise<boolean> {
     try {
       const updated = await this.prisma.safeExecute(async () => {
         return await this.prisma.conversation.update({
           where: { id: conversationId },
-          data: { title, updatedAt: new Date() }
+          data: { title, updatedAt: new Date() },
         });
       });
-      this.logger.log(`[Conversation] Updated title for conversation ${conversationId}`);
+      this.logger.log(
+        `[Conversation] Updated title for conversation ${conversationId}`,
+      );
       return !!updated;
     } catch (error) {
-      this.logger.error(`[Conversation] Error updating title for conversation ${conversationId}:`, error);
+      this.logger.error(
+        `[Conversation] Error updating title for conversation ${conversationId}:`,
+        error,
+      );
       return false;
     }
   }

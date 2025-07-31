@@ -34,7 +34,8 @@ export interface ToolsObject {
 
 // CORRECTED: Metadata type for Pinecone.
 // We will store the `fullTool` as a JSON string.
-export interface ToolMetadata extends Record<string, any> { // Extends Record<string, any> to satisfy RecordMetadata constraint
+export interface ToolMetadata extends Record<string, any> {
+  // Extends Record<string, any> to satisfy RecordMetadata constraint
   toolName: string;
   appKey: string; // e.g., "GMAIL"
   fullToolJson: string; // Store JSON string of the full Tool object

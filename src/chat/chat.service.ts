@@ -42,9 +42,27 @@ export class ChatService {
     const { userQuery, userId, conversationHistory, sessionId } = request;
     const startTime = Date.now();
 
+    // Input validation
+    if (!userQuery || !userId) {
+      this.logger.warn('Missing required fields: userQuery or userId');
+      return {
+        response: 'Invalid request: missing required information.',
+        executedTools: [],
+        requiredConnections: [],
+        conversationHistory: [],
+        analysis: undefined,
+      };
+    }
+
+    // Config-driven constants
+    const HISTORY_LIMIT = this.configService.get<number>(
+      'MAX_CONVERSATION_HISTORY',
+      50,
+    );
+
     try {
       this.logger.log(
-        `🚀 Production Chat Request - User: ${userId}, Query: "${userQuery.substring(0, 100)}...", Session: ${sessionId || 'N/A'}`,
+        `🚀 Production Chat Request - User: ${userId}, Query: "${userQuery.substring(0, 40)}...", Session: ${sessionId || 'N/A'}`,
       );
 
       // Initialize database context
@@ -59,15 +77,19 @@ export class ChatService {
       // Get conversation history from database
       let existingHistory = conversationHistory;
       if (!existingHistory && dbContext.sessionId) {
-        existingHistory = await this.databaseIntegrationService.getConversationHistory(
-          dbContext.sessionId,
-          20, // Get last 50 messages
-        );
+        existingHistory =
+          await this.databaseIntegrationService.getConversationHistory(
+            dbContext.sessionId,
+            HISTORY_LIMIT, // Configurable history limit
+          );
       }
 
       // Fallback to in-memory history if database fails
       if (!existingHistory) {
-        existingHistory = this.conversationService.getHistory(userId, sessionId);
+        existingHistory = this.conversationService.getHistory(
+          userId,
+          sessionId,
+        );
       }
 
       const lastSummary =
@@ -223,8 +245,8 @@ export class ChatService {
 
     // Process tool results - combining calls with their results
     let hadToolFailure = false;
-    let failedToolNames: string[] = [];
-    let toolExecutionDetails: string[] = [];
+    const failedToolNames: string[] = [];
+    const toolExecutionDetails: string[] = [];
     const executedTools: any[] = [];
 
     if (toolCalls.length > 0) {
@@ -428,25 +450,12 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
       analysis,
     };
 
-    // Update in-memory conversation history
-    this.conversationService.updateHistory(
-      request.userId,
-      userMessage,
-      request.sessionId,
-    );
-    this.conversationService.updateHistory(
-      request.userId,
-      assistantMessage,
-      request.sessionId,
-    );
-
-    // Save to database
+    // Always try to persist to the database first
     try {
       const dbContext = await this.databaseIntegrationService.initializeContext(
         request.userId,
         request.sessionId,
       );
-
       await this.databaseIntegrationService.completeConversationFlow(
         dbContext,
         request.userQuery,
@@ -454,8 +463,21 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
         analysis,
       );
     } catch (error) {
-      this.logger.error('Error saving conversation to database:', error);
-      // Don't throw error to avoid breaking the chat flow
+      this.logger.error(
+        'Error saving conversation to database, falling back to in-memory store:',
+        error,
+      );
+      // Fallback: update in-memory conversation history
+      this.conversationService.updateHistory(
+        request.userId,
+        userMessage,
+        request.sessionId,
+      );
+      this.conversationService.updateHistory(
+        request.userId,
+        assistantMessage,
+        request.sessionId,
+      );
     }
   }
 }

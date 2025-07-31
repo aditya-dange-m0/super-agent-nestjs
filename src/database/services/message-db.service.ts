@@ -17,7 +17,10 @@ export class MessageDbService {
   /**
    * Retrieve the latest N messages for a session.
    */
-  async getMessagesForSession(sessionId: string, limit: number = 10): Promise<ChatMessage[]> {
+  async getMessagesForSession(
+    sessionId: string,
+    limit: number = 10,
+  ): Promise<ChatMessage[]> {
     const cacheKey = `messages:${sessionId}:${limit}`;
     try {
       // Check cache first
@@ -53,21 +56,22 @@ export class MessageDbService {
       }
 
       // Transform to ChatMessage format (sorted oldest-to-newest)
-      const chatMessages: ChatMessage[] = messages
-        .reverse()
-        .map(msg => ({
-          role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
-          content: msg.content,
-          timestamp: msg.timestamp.getTime(),
-          toolCalls: msg.toolCalls as any ?? undefined,
-          analysis: msg.analysis as any ?? undefined,
-        }));
+      const chatMessages: ChatMessage[] = messages.reverse().map((msg) => ({
+        role: msg.role.toLowerCase() as 'user' | 'assistant' | 'system',
+        content: msg.content,
+        timestamp: msg.timestamp.getTime(),
+        toolCalls: (msg.toolCalls as any) ?? undefined,
+        analysis: (msg.analysis as any) ?? undefined,
+      }));
 
       // Cache
       await this.cache.set(cacheKey, chatMessages, this.MESSAGE_CACHE_TTL);
       return chatMessages;
     } catch (error) {
-      this.logger.error(`Error getting messages for session ${sessionId}:`, error);
+      this.logger.error(
+        `Error getting messages for session ${sessionId}:`,
+        error,
+      );
       return [];
     }
   }
@@ -76,15 +80,20 @@ export class MessageDbService {
    * Save a chat message (user or assistant) for a session.
    * Automatically creates a conversation if one doesn't exist.
    */
-  async saveMessageToSession(sessionId: string, message: ChatMessage): Promise<Message | null> {
+  async saveMessageToSession(
+    sessionId: string,
+    message: ChatMessage,
+  ): Promise<Message | null> {
     try {
       // Ensure a conversation exists for this session
-      let conversation: Conversation | null = await this.prisma.safeExecute(async () => {
-        return await this.prisma.conversation.findFirst({
-          where: { sessionId },
-          orderBy: { createdAt: 'desc' },
-        });
-      });
+      let conversation: Conversation | null = await this.prisma.safeExecute(
+        async () => {
+          return await this.prisma.conversation.findFirst({
+            where: { sessionId },
+            orderBy: { createdAt: 'desc' },
+          });
+        },
+      );
 
       if (!conversation) {
         conversation = await this.prisma.safeExecute(async () => {
@@ -98,7 +107,9 @@ export class MessageDbService {
       }
 
       if (!conversation) {
-        this.logger.error(`Could not create or find conversation for session ${sessionId}`);
+        this.logger.error(
+          `Could not create or find conversation for session ${sessionId}`,
+        );
         return null;
       }
 
@@ -106,12 +117,12 @@ export class MessageDbService {
       const createdMessage = await this.prisma.safeExecute(async () => {
         return await this.prisma.message.create({
           data: {
-            conversationId: conversation!.id,
+            conversationId: conversation.id,
             role: message.role.toUpperCase() as any,
             content: message.content,
             timestamp: new Date(message.timestamp),
-            toolCalls: message.toolCalls as any ?? undefined,
-            analysis: message.analysis as any ?? undefined,
+            toolCalls: (message.toolCalls as any) ?? undefined,
+            analysis: (message.analysis as any) ?? undefined,
             metadata: undefined, // Add structure as needed
           },
         });
@@ -119,10 +130,15 @@ export class MessageDbService {
 
       // Invalidate message cache for this session
       await this.cache.delete(`messages:${sessionId}:10`);
-      this.logger.debug(`Saved message to session ${sessionId} (role: ${message.role})`);
+      this.logger.debug(
+        `Saved message to session ${sessionId} (role: ${message.role})`,
+      );
       return createdMessage ?? null;
     } catch (error) {
-      this.logger.error(`Error saving message for session ${sessionId}:`, error);
+      this.logger.error(
+        `Error saving message for session ${sessionId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -149,10 +165,15 @@ export class MessageDbService {
         totalDeleted += deleted?.count ?? 0;
         await this.cache.delete(`messages:${sessionId}:10`);
       }
-      this.logger.log(`Cleared ${totalDeleted} messages for session ${sessionId}`);
+      this.logger.log(
+        `Cleared ${totalDeleted} messages for session ${sessionId}`,
+      );
       return totalDeleted;
     } catch (error) {
-      this.logger.error(`Error clearing messages for session ${sessionId}:`, error);
+      this.logger.error(
+        `Error clearing messages for session ${sessionId}:`,
+        error,
+      );
       return 0;
     }
   }

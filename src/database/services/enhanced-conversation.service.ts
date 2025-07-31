@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ChatMessage, ComprehensiveAnalysis } from '../../chat/interfaces/chat.interfaces';
+import {
+  ChatMessage,
+  ComprehensiveAnalysis,
+} from '../../chat/interfaces/chat.interfaces';
 
 import { SessionDbService } from '../../database/services/session-db.service';
 import { MessageDbService } from '../../database/services/message-db.service';
@@ -18,7 +21,10 @@ export class EnhancedConversationService {
     private readonly messageDbService: MessageDbService,
     private readonly userDbService: UserDbService,
   ) {
-    this.maxConversationHistory = this.configService.get<number>('MAX_CONVERSATION_HISTORY', 10);
+    this.maxConversationHistory = this.configService.get<number>(
+      'MAX_CONVERSATION_HISTORY',
+      10,
+    );
   }
 
   /**
@@ -30,23 +36,33 @@ export class EnhancedConversationService {
       await this.userDbService.findOrCreateUser(userId);
 
       // Find or create session
-      const session = await this.sessionDbService.findOrCreateSession(userId, sessionId);
+      const session = await this.sessionDbService.findOrCreateSession(
+        userId,
+        sessionId,
+      );
       if (!session) {
         this.logger.warn(`[ConvSvc] No session found for user ${userId}`);
         return [];
       }
 
       // Fetch last N messages from DB, fallback to memory if DB unavailable
-      const dbMessages = await this.messageDbService.getMessagesForSession(session.id, this.maxConversationHistory);
+      const dbMessages = await this.messageDbService.getMessagesForSession(
+        session.id,
+        this.maxConversationHistory,
+      );
       if (dbMessages.length > 0) {
-        this.logger.log(`[ConvSvc] Got ${dbMessages.length} messages from DB for session ${session.id}`);
+        this.logger.log(
+          `[ConvSvc] Got ${dbMessages.length} messages from DB for session ${session.id}`,
+        );
         return dbMessages;
       }
 
       // In-memory fallback
       const key = this.getConversationKey(userId, sessionId);
       const memMessages = this.conversationStore.get(key) || [];
-      this.logger.warn(`[ConvSvc] Using in-memory fallback, ${memMessages.length} messages for key ${key}`);
+      this.logger.warn(
+        `[ConvSvc] Using in-memory fallback, ${memMessages.length} messages for key ${key}`,
+      );
       return memMessages;
     } catch (error) {
       this.logger.error(`[ConvSvc] Error fetching history:`, error);
@@ -58,10 +74,17 @@ export class EnhancedConversationService {
   /**
    * Save a message for a user/session (both DB and memory for resiliency).
    */
-  async updateHistory(userId: string, message: ChatMessage, sessionId?: string): Promise<void> {
+  async updateHistory(
+    userId: string,
+    message: ChatMessage,
+    sessionId?: string,
+  ): Promise<void> {
     try {
       await this.userDbService.findOrCreateUser(userId);
-      const session = await this.sessionDbService.findOrCreateSession(userId, sessionId);
+      const session = await this.sessionDbService.findOrCreateSession(
+        userId,
+        sessionId,
+      );
 
       if (!session) {
         this.logger.warn(`[ConvSvc] No session found for user ${userId}`);
@@ -69,9 +92,14 @@ export class EnhancedConversationService {
       }
 
       // Save to DB (async, errors are logged but non-fatal)
-      this.messageDbService.saveMessageToSession(session.id, message).catch((err) => {
-        this.logger.warn(`[ConvSvc] DB save failed, will use in-memory as fallback (non-fatal):`, err);
-      });
+      this.messageDbService
+        .saveMessageToSession(session.id, message)
+        .catch((err) => {
+          this.logger.warn(
+            `[ConvSvc] DB save failed, will use in-memory as fallback (non-fatal):`,
+            err,
+          );
+        });
 
       // Always backup in memory (for zero-downtime/chat recovery)
       const key = this.getConversationKey(userId, sessionId);
@@ -95,7 +123,11 @@ export class EnhancedConversationService {
   /**
    * Store the per-session conversation summary (dynamic memory) in DB.
    */
-  async updateSessionSummary(userId: string, sessionId: string, analysis: ComprehensiveAnalysis): Promise<void> {
+  async updateSessionSummary(
+    userId: string,
+    sessionId: string,
+    analysis: ComprehensiveAnalysis,
+  ): Promise<void> {
     try {
       await this.sessionDbService.updateSessionSummary(sessionId, analysis);
     } catch (error) {
@@ -106,7 +138,9 @@ export class EnhancedConversationService {
   /**
    * Retrieve per-session summary for context injection.
    */
-  async getSessionSummary(sessionId: string): Promise<ComprehensiveAnalysis | null> {
+  async getSessionSummary(
+    sessionId: string,
+  ): Promise<ComprehensiveAnalysis | null> {
     try {
       return await this.sessionDbService.getSessionSummary(sessionId);
     } catch (error) {

@@ -33,4 +33,4 @@ import { DatabaseIntegrationService } from './services/database-integration.serv
     DatabaseIntegrationService,
   ],
 })
-export class DatabaseModule {} 
+export class DatabaseModule {}

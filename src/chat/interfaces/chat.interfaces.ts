@@ -68,7 +68,12 @@ export interface ConversationSummary {
     userPreferences: string[];
     previousActions: string[];
   };
-  conversationState: 'information_gathering' | 'ready_to_execute' | 'executed' | 'clarification_needed' | 'completed';
+  conversationState:
+    | 'information_gathering'
+    | 'ready_to_execute'
+    | 'executed'
+    | 'clarification_needed'
+    | 'completed';
   keyEntities: {
     type: string;
     value: string;

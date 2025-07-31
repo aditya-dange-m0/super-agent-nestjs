@@ -1,8 +1,16 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   private readonly logger = new Logger(PrismaService.name);
   private isHealthy: boolean = false;
   private connectionAttempts: number = 0;
@@ -55,22 +63,22 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         await this.$connect();
         this.isHealthy = true;
         this.logger.log('✅ Database connected successfully');
-        
+
         // Test the connection
         await this.healthCheck();
         return;
       } catch (error) {
         this.connectionAttempts++;
         this.isHealthy = false;
-        
+
         this.logger.error(
           `❌ Database connection attempt ${this.connectionAttempts}/${this.maxRetries} failed:`,
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error ? error.message : String(error),
         );
 
         if (this.connectionAttempts >= this.maxRetries) {
           this.logger.error(
-            '🚨 Maximum database connection attempts reached. Application will continue without database functionality.'
+            '🚨 Maximum database connection attempts reached. Application will continue without database functionality.',
           );
           break;
         }
@@ -78,7 +86,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         // Wait before retrying (exponential backoff)
         const waitTime = Math.pow(2, this.connectionAttempts) * 1000;
         this.logger.log(`⏳ Waiting ${waitTime}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
     }
   }
@@ -117,9 +125,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     try {
       await this.$queryRaw`SELECT 1 as health_check`;
       const responseTime = Date.now() - startTime;
-      
+
       this.isHealthy = true;
-      
+
       return {
         status: 'healthy',
         details: {
@@ -130,7 +138,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     } catch (error) {
       const responseTime = Date.now() - startTime;
       this.isHealthy = false;
-      
+
       return {
         status: 'unhealthy',
         details: {
@@ -167,7 +175,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
    */
   async executeWithRetry<T>(
     operation: () => Promise<T>,
-    retries: number = 2
+    retries: number = 2,
   ): Promise<T | null> {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -181,15 +189,20 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
           return await operation();
         }
       } catch (error) {
-        this.logger.error(`Database operation attempt ${attempt + 1} failed:`, error);
-        
+        this.logger.error(
+          `Database operation attempt ${attempt + 1} failed:`,
+          error,
+        );
+
         if (attempt === retries) {
           this.logger.error('All database operation attempts failed');
           return null;
         }
 
         // Wait before retrying
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * (attempt + 1)),
+        );
       }
     }
 
@@ -206,7 +219,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   } | null> {
     try {
       const isConnected = await this.isConnected();
-      
+
       return {
         isHealthy: this.isHealthy,
         connectionAttempts: this.connectionAttempts,
@@ -224,13 +237,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async reconnect(): Promise<boolean> {
     try {
       this.logger.log('🔄 Forcing database reconnection...');
-      
+
       await this.$disconnect();
       this.isHealthy = false;
       this.connectionAttempts = 0;
-      
+
       await this.connectWithRetry();
-      
+
       return this.isHealthy;
     } catch (error) {
       this.logger.error('Force reconnection failed:', error);
@@ -238,8 +251,6 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     }
   }
 }
-
-
 
 // // Example usage in your chat services:
 // const result = await this.prisma.safeExecute(async () => {
@@ -253,4 +264,3 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 //   // Database unavailable, use fallback
 //   console.log('Using in-memory fallback');
 // }
-

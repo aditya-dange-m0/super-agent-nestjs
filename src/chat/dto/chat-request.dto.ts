@@ -1,7 +1,13 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-
 
 export class ChatMessage {
   @IsString()
@@ -16,7 +22,6 @@ export class ChatMessage {
   @Transform(({ value }) => value || Date.now()) // Auto-generate if not provided
   timestamp: number; // Made required to match interface
 
-
   @IsOptional()
   toolCalls?: {
     name: string;
@@ -30,12 +35,18 @@ export class ChatMessage {
 }
 
 export class ChatRequestDto {
-  @ApiProperty({ example: 'What’s the weather today in Pune?', description: 'The user’s input query.' })
+  @ApiProperty({
+    example: 'What’s the weather today in Pune?',
+    description: 'The user’s input query.',
+  })
   @IsString()
   @IsNotEmpty()
   userQuery: string;
 
-  @ApiProperty({ example: 'user_UUID_1234', description: 'Unique identifier of the user.' })
+  @ApiProperty({
+    example: 'user_UUID_1234',
+    description: 'Unique identifier of the user.',
+  })
   @IsString()
   @IsNotEmpty()
   userId: string;
@@ -54,7 +65,11 @@ export class ChatRequestDto {
   @Type(() => ChatMessage)
   conversationHistory?: ChatMessage[];
 
-  @ApiProperty({ example: 'session_xyz', description: 'Session ID for chat session.', required: false })
+  @ApiProperty({
+    example: 'session_xyz',
+    description: 'Session ID for chat session.',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   sessionId?: string;

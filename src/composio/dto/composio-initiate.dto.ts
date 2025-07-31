@@ -8,7 +8,7 @@ export class ComposioInitiateDto {
   @IsString()
   @IsNotEmpty()
   appName: string;
-  
+
   @ApiProperty({
     example: '984bf230-6866-45de-b610-a08b61aaa6ef',
     description: 'The UUID of User',

@@ -1,5 +1,10 @@
 // src/pinecone/pinecone.service.ts
-import { Injectable, OnModuleInit, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { Pinecone, Index, PineconeRecord } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
 import { ToolMetadata, ToolsObject } from '../types/types'; // Adjust path as needed
@@ -18,11 +23,19 @@ export class PineconeService implements OnModuleInit {
     // Load environment variables. In a real NestJS app, consider using @nestjs/config.
     this.PINECONE_API_KEY = this.configService.get<string>('PINECONE_API_KEY')!;
     this.OPENAI_API_KEY = this.configService.get<string>('OPENAI_API_KEY')!;
-    this.PINECONE_INDEX_NAME = this.configService.get<string>('PINECONE_INDEX_NAME')!;
+    this.PINECONE_INDEX_NAME = this.configService.get<string>(
+      'PINECONE_INDEX_NAME',
+    )!;
 
     // Validate environment variables
-    if (!this.PINECONE_API_KEY || !this.OPENAI_API_KEY || !this.PINECONE_INDEX_NAME) {
-      throw new Error('Missing environment variables for Pinecone or OpenAI. Ensure PINECONE_API_KEY, OPENAI_API_KEY, and PINECONE_INDEX_NAME are set.');
+    if (
+      !this.PINECONE_API_KEY ||
+      !this.OPENAI_API_KEY ||
+      !this.PINECONE_INDEX_NAME
+    ) {
+      throw new Error(
+        'Missing environment variables for Pinecone or OpenAI. Ensure PINECONE_API_KEY, OPENAI_API_KEY, and PINECONE_INDEX_NAME are set.',
+      );
     }
 
     // Initialize Pinecone and OpenAI clients
@@ -49,7 +62,11 @@ export class PineconeService implements OnModuleInit {
   private async initializePineconeIndex(): Promise<void> {
     try {
       const indexList = await this.pinecone.listIndexes();
-      if (!indexList.indexes?.some((index) => index.name === this.PINECONE_INDEX_NAME)) {
+      if (
+        !indexList.indexes?.some(
+          (index) => index.name === this.PINECONE_INDEX_NAME,
+        )
+      ) {
         console.log(`Creating Pinecone index: ${this.PINECONE_INDEX_NAME}...`);
         await this.pinecone.createIndex({
           name: this.PINECONE_INDEX_NAME,
@@ -65,11 +82,15 @@ export class PineconeService implements OnModuleInit {
         });
         console.log(`Pinecone index ${this.PINECONE_INDEX_NAME} created.`);
       } else {
-        console.log(`Pinecone index ${this.PINECONE_INDEX_NAME} already exists.`);
+        console.log(
+          `Pinecone index ${this.PINECONE_INDEX_NAME} already exists.`,
+        );
       }
     } catch (error) {
       console.error('Error initializing Pinecone index:', error);
-      throw new InternalServerErrorException('Failed to initialize Pinecone index.');
+      throw new InternalServerErrorException(
+        'Failed to initialize Pinecone index.',
+      );
     }
   }
 
@@ -135,7 +156,9 @@ export class PineconeService implements OnModuleInit {
         );
       } catch (error) {
         console.error(`Error upserting batch for app ${appKey}:`, error);
-        throw new InternalServerErrorException(`Failed to ingest tools for app ${appKey}.`);
+        throw new InternalServerErrorException(
+          `Failed to ingest tools for app ${appKey}.`,
+        );
       }
     }
   }
@@ -178,7 +201,9 @@ export class PineconeService implements OnModuleInit {
       return relevantToolNames;
     } catch (error) {
       console.error(`Error searching Pinecone for app ${appKey}:`, error);
-      throw new InternalServerErrorException(`Failed to search for tools for app ${appKey}.`);
+      throw new InternalServerErrorException(
+        `Failed to search for tools for app ${appKey}.`,
+      );
     }
   }
 }

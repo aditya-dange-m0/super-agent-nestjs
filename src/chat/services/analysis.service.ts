@@ -54,7 +54,7 @@ export class AnalysisService {
     try {
       this.logger.log('Calling Mastra for comprehensive analysis...');
       console.log('[Analysis] Calling LLM for comprehensive analysis...');
-      
+
       const analysisModel = this.modelProviderService.getAnalysisModel();
 
       const { object } = await generateObject({

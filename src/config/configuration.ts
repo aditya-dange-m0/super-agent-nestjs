@@ -7,9 +7,9 @@ export default () => ({
   // AI Models Configuration
   CHAT_MODEL: process.env.CHAT_MODEL || 'gpt-4o-mini',
   ANALYSIS_MODEL: process.env.ANALYSIS_MODEL || 'gpt-4o-mini',
-  
+
   // Agent Configuration
   MAX_AGENT_STEPS: parseInt(process.env.MAX_AGENT_STEPS!, 10) || 8,
-  MAX_CONVERSATION_HISTORY: parseInt(process.env.MAX_CONVERSATION_HISTORY!, 10) || 10,
-
+  MAX_CONVERSATION_HISTORY:
+    parseInt(process.env.MAX_CONVERSATION_HISTORY!, 10) || 10,
 });

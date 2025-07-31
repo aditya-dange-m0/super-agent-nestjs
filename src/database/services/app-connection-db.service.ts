@@ -14,31 +14,43 @@ export class AppConnectionDbService {
   ) {}
 
   /**
-   * Retrieve all active (and optionally, all) app connections for a user.
+   * Retrieve all app connections for a user, filtered by one or more statuses.
    */
-  async getUserConnections(userId: string, status: AppConnectionStatus = 'ACTIVE'): Promise<{ [appName: string]: string }> {
-    const cacheKey = `user_connections:${userId}:${status}`;
+  async getUserConnections(
+    userId: string,
+    status: AppConnectionStatus | AppConnectionStatus[] = 'ACTIVE',
+  ): Promise<{ [appName: string]: string }> {
+    const statusArray = Array.isArray(status) ? status : [status];
+    const cacheKey = `user_connections:${userId}:${statusArray.join(',')}`;
     try {
       // Use cache
-      const cached = await this.cache.get<{ [appName: string]: string }>(cacheKey);
+      const cached = await this.cache.get<{ [appName: string]: string }>(
+        cacheKey,
+      );
       if (cached) return cached;
 
       const connections = await this.prisma.safeExecute(async () => {
         return await this.prisma.appConnection.findMany({
-          where: { userId, status },
+          where: { userId, status: { in: statusArray } },
           select: { appName: true, accountId: true },
         });
       });
 
-      const connMap = (connections || []).reduce((acc, conn) => {
-        acc[conn.appName] = conn.accountId;
-        return acc;
-      }, {} as { [appName: string]: string });
+      const connMap = (connections || []).reduce(
+        (acc, conn) => {
+          acc[conn.appName] = conn.accountId;
+          return acc;
+        },
+        {} as { [appName: string]: string },
+      );
 
       await this.cache.set(cacheKey, connMap, this.CACHE_TTL);
       return connMap;
     } catch (error) {
-      this.logger.error(`Error fetching app connections for user ${userId}:`, error);
+      this.logger.error(
+        `Error fetching app connections for user ${userId}:`,
+        error,
+      );
       return {}; // Fallback
     }
   }
@@ -51,7 +63,7 @@ export class AppConnectionDbService {
     appName: string,
     accountId: string,
     status: AppConnectionStatus = 'ACTIVE',
-    metadata?: any
+    metadata?: any,
   ): Promise<AppConnection | null> {
     try {
       const connection = await this.prisma.safeExecute(async () => {
@@ -69,16 +81,21 @@ export class AppConnectionDbService {
             accountId,
             status,
             metadata,
-          }
+          },
         });
       });
 
       // Invalidate cache for user
       await this.cache.delete(`user_connections:${userId}:ACTIVE`);
-      this.logger.log(`[AppConn] Upserted connection: ${userId}/${appName} ${status}`);
+      this.logger.log(
+        `[AppConn] Upserted connection: ${userId}/${appName} ${status}`,
+      );
       return connection || null;
     } catch (error) {
-      this.logger.error(`Upsert failed for user=${userId} app=${appName}:`, error);
+      this.logger.error(
+        `Upsert failed for user=${userId} app=${appName}:`,
+        error,
+      );
       return null;
     }
   }
@@ -86,36 +103,52 @@ export class AppConnectionDbService {
   /**
    * Remove (mark as INACTIVE/EXPIRED) a user's app connection.
    */
-  async deactivateConnection(userId: string, appName: string, status: AppConnectionStatus = 'INACTIVE') {
+  async deactivateConnection(
+    userId: string,
+    appName: string,
+    status: AppConnectionStatus = 'INACTIVE',
+  ) {
     try {
       await this.prisma.safeExecute(async () => {
         await this.prisma.appConnection.update({
           where: { userId_appName: { userId, appName } },
           data: {
             status,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
       });
       await this.cache.delete(`user_connections:${userId}:ACTIVE`);
-      this.logger.log(`[AppConn] Set ${appName} to ${status} for user ${userId}`);
+      this.logger.log(
+        `[AppConn] Set ${appName} to ${status} for user ${userId}`,
+      );
     } catch (error) {
-      this.logger.error(`[AppConn] Error marking ${appName}/${userId} as ${status}:`, error);
+      this.logger.error(
+        `[AppConn] Error marking ${appName}/${userId} as ${status}:`,
+        error,
+      );
     }
   }
 
   /**
    * Get full AppConnection details for a user/app.
    */
-  async getConnection(userId: string, appName: string): Promise<AppConnection | null> {
+  async getConnection(
+    userId: string,
+    appName: string,
+  ): Promise<AppConnection | null> {
     try {
-      return await this.prisma.safeExecute(async () =>
-        await this.prisma.appConnection.findUnique({
-          where: { userId_appName: { userId, appName } }
-        })
+      return await this.prisma.safeExecute(
+        async () =>
+          await this.prisma.appConnection.findUnique({
+            where: { userId_appName: { userId, appName } },
+          }),
       );
     } catch (error) {
-      this.logger.error(`[AppConn] Error fetching ${appName}/${userId}:`, error);
+      this.logger.error(
+        `[AppConn] Error fetching ${appName}/${userId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -126,11 +159,12 @@ export class AppConnectionDbService {
   async listAllConnections(userId: string): Promise<AppConnection[]> {
     try {
       return (
-        (await this.prisma.safeExecute(async () =>
-          await this.prisma.appConnection.findMany({
-            where: { userId },
-            orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }],
-          })
+        (await this.prisma.safeExecute(
+          async () =>
+            await this.prisma.appConnection.findMany({
+              where: { userId },
+              orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }],
+            }),
         )) || []
       );
     } catch (error) {

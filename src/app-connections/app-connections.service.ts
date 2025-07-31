@@ -12,7 +12,12 @@ export class AppConnectionsService {
     private readonly composioService: ComposioService,
   ) {}
 
-  async connectApp(userId: string, appName: string, accountId: string, metadata?: any) {
+  async connectApp(
+    userId: string,
+    appName: string,
+    accountId: string,
+    metadata?: any,
+  ) {
     try {
       const connection = await this.prisma.appConnection.upsert({
         where: { userId_appName: { userId, appName } },
@@ -33,7 +38,10 @@ export class AppConnectionsService {
       this.logger.log(`App ${appName} connected for user ${userId}`);
       return connection;
     } catch (error) {
-      this.logger.error(`Error connecting app ${appName} for user ${userId}:`, error);
+      this.logger.error(
+        `Error connecting app ${appName} for user ${userId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -58,11 +66,14 @@ export class AppConnectionsService {
     try {
       await this.prisma.appConnection.update({
         where: { userId_appName: { userId, appName } },
-        data: { status: 'INACTIVE', updatedAt: new Date() }
+        data: { status: 'INACTIVE', updatedAt: new Date() },
       });
       this.logger.log(`App ${appName} disconnected for user ${userId}`);
     } catch (error) {
-      this.logger.error(`Error disconnecting app ${appName} for user ${userId}:`, error);
+      this.logger.error(
+        `Error disconnecting app ${appName} for user ${userId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -70,26 +81,46 @@ export class AppConnectionsService {
   async syncConnectionStatus(userId: string, appName: string) {
     try {
       const connection = await this.prisma.appConnection.findUnique({
-        where: { userId_appName: { userId, appName } }
+        where: { userId_appName: { userId, appName } },
       });
 
       if (connection) {
-        const status = await this.composioService.getComposioConnectionStatus(connection.accountId);
-        
+        const status = await this.composioService.getComposioConnectionStatus(
+          connection.accountId,
+        );
+
         await this.prisma.appConnection.update({
           where: { id: connection.id },
-          data: { 
+          data: {
             status: status.status,
             metadata: { ...connection, lastSync: new Date() },
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
 
         return status;
       }
     } catch (error) {
-      this.logger.error(`Error syncing connection status for ${appName}:`, error);
+      this.logger.error(
+        `Error syncing connection status for ${appName}:`,
+        error,
+      );
       throw error;
     }
+  }
+
+  // Returns the accountId for a user's app connection if active, otherwise undefined
+  async getUserAppConnectionId(
+    userId: string,
+    appName: string,
+  ): Promise<string | undefined> {
+    const connection = await this.prisma.appConnection.findUnique({
+      where: { userId_appName: { userId, appName } },
+      select: { accountId: true, status: true },
+    });
+    if (connection && connection.status === 'ACTIVE') {
+      return connection.accountId;
+    }
+    return undefined;
   }
 }

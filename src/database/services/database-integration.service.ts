@@ -5,7 +5,10 @@ import { ConversationDbService } from './conversation-db.service';
 import { MessageDbService } from './message-db.service';
 import { AppConnectionDbService } from './app-connection-db.service';
 import { EnhancedConversationService } from './enhanced-conversation.service';
-import { ChatMessage, ChatResponse } from '../../chat/interfaces/chat.interfaces';
+import {
+  ChatMessage,
+  ChatResponse,
+} from '../../chat/interfaces/chat.interfaces';
 
 export interface DatabaseContext {
   userId: string;
@@ -58,14 +61,21 @@ export class DatabaseIntegrationService {
       if (sessionId) {
         session = await this.sessionDbService.getSession(sessionId);
         if (session && session.userId !== userId) {
-          this.logger.warn(`Session ${sessionId} belongs to different user, creating new session`);
+          this.logger.warn(
+            `Session ${sessionId} belongs to different user, creating new session`,
+          );
           session = null;
         }
       }
 
       if (!session) {
-        this.logger.log(`Creating or finding session for user ${userId} with sessionId: ${sessionId || 'auto-generated'}`);
-        session = await this.sessionDbService.findOrCreateSession(userId, sessionId);
+        this.logger.log(
+          `Creating or finding session for user ${userId} with sessionId: ${sessionId || 'auto-generated'}`,
+        );
+        session = await this.sessionDbService.findOrCreateSession(
+          userId,
+          sessionId,
+        );
         if (!session) {
           throw new Error(`Failed to create session for user: ${userId}`);
         }
@@ -96,11 +106,13 @@ export class DatabaseIntegrationService {
       // First, ensure the session exists
       const session = await this.sessionDbService.getSession(sessionId);
       if (!session) {
-        this.logger.warn(`Session ${sessionId} not found, attempting to create it`);
+        this.logger.warn(
+          `Session ${sessionId} not found, attempting to create it`,
+        );
         // Try to create the session if it doesn't exist
         const newSession = await this.sessionDbService.findOrCreateSession(
           'user_12345_67890', // Default user ID for testing
-          sessionId
+          sessionId,
         );
         if (!newSession) {
           throw new Error(`Failed to create session: ${sessionId}`);
@@ -108,19 +120,30 @@ export class DatabaseIntegrationService {
       }
 
       // Check if conversation already exists for this session
-      const existingConversations = await this.conversationDbService.getConversationsForSession(sessionId, 1);
+      const existingConversations =
+        await this.conversationDbService.getConversationsForSession(
+          sessionId,
+          1,
+        );
       if (existingConversations.length > 0) {
-        this.logger.log(`Using existing conversation ${existingConversations[0].id} for session ${sessionId}`);
+        this.logger.log(
+          `Using existing conversation ${existingConversations[0].id} for session ${sessionId}`,
+        );
         return existingConversations[0].id;
       }
 
       // Create a new conversation for this session
-      const conversation = await this.conversationDbService.createConversation(sessionId);
+      const conversation =
+        await this.conversationDbService.createConversation(sessionId);
       if (!conversation) {
-        throw new Error(`Failed to create conversation for session: ${sessionId}`);
+        throw new Error(
+          `Failed to create conversation for session: ${sessionId}`,
+        );
       }
 
-      this.logger.log(`Created new conversation ${conversation.id} for session ${sessionId}`);
+      this.logger.log(
+        `Created new conversation ${conversation.id} for session ${sessionId}`,
+      );
       return conversation.id;
     } catch (error) {
       this.logger.error(`Error getting/creating conversation:`, error);
@@ -144,11 +167,13 @@ export class DatabaseIntegrationService {
           role: 'user',
           content,
           timestamp: Date.now(),
-        }
+        },
       );
 
       if (!message) {
-        throw new Error(`Failed to save user message for session: ${sessionId}`);
+        throw new Error(
+          `Failed to save user message for session: ${sessionId}`,
+        );
       }
 
       return message.id;
@@ -177,11 +202,13 @@ export class DatabaseIntegrationService {
           timestamp: Date.now(),
           toolCalls,
           analysis,
-        }
+        },
       );
 
       if (!message) {
-        throw new Error(`Failed to save assistant response for session: ${sessionId}`);
+        throw new Error(
+          `Failed to save assistant response for session: ${sessionId}`,
+        );
       }
 
       return message.id;
@@ -222,7 +249,9 @@ export class DatabaseIntegrationService {
     try {
       // For now, we'll skip this since the method doesn't exist
       // In a full implementation, you'd add this method to ConversationDbService
-      this.logger.debug(`Would update conversation summary for ${conversationId}`);
+      this.logger.debug(
+        `Would update conversation summary for ${conversationId}`,
+      );
     } catch (error) {
       this.logger.error(`Error updating conversation summary:`, error);
     }
@@ -231,10 +260,7 @@ export class DatabaseIntegrationService {
   /**
    * Update session conversation summary
    */
-  async updateSessionSummary(
-    sessionId: string,
-    summary: any,
-  ): Promise<void> {
+  async updateSessionSummary(sessionId: string, summary: any): Promise<void> {
     try {
       await this.sessionDbService.updateSessionSummary(sessionId, summary);
     } catch (error) {
@@ -247,7 +273,10 @@ export class DatabaseIntegrationService {
    */
   async getUserAppConnections(userId: string): Promise<any[]> {
     try {
-      const connections = await this.appConnectionDbService.getUserConnections(userId, 'ACTIVE');
+      const connections = await this.appConnectionDbService.getUserConnections(
+        userId,
+        'ACTIVE',
+      );
       return Object.entries(connections).map(([appName, accountId]) => ({
         appName,
         accountId,
@@ -269,7 +298,9 @@ export class DatabaseIntegrationService {
   ): Promise<void> {
     try {
       if (!context.conversationId) {
-        context.conversationId = await this.getOrCreateConversation(context.sessionId!);
+        context.conversationId = await this.getOrCreateConversation(
+          context.sessionId!,
+        );
       }
 
       // Save user message
@@ -295,7 +326,9 @@ export class DatabaseIntegrationService {
         }
       }
 
-      this.logger.log(`Conversation flow completed for user: ${context.userId}`);
+      this.logger.log(
+        `Conversation flow completed for user: ${context.userId}`,
+      );
     } catch (error) {
       this.logger.error(`Error completing conversation flow:`, error);
       // Don't throw error to avoid breaking the chat flow
@@ -322,9 +355,11 @@ export class DatabaseIntegrationService {
       await this.sessionDbService.cleanupInactiveSessions();
       // Note: cleanupOldConversations and cleanupOldMessages methods don't exist yet
       // In a full implementation, you'd add these methods to the respective services
-      this.logger.debug('Cleanup completed (partial - some methods not implemented)');
+      this.logger.debug(
+        'Cleanup completed (partial - some methods not implemented)',
+      );
     } catch (error) {
       this.logger.error(`Error cleaning up old data:`, error);
     }
   }
-} 
+}

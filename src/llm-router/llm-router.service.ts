@@ -4,12 +4,19 @@ import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { z } from 'zod'; // Zod for schema definition and validation
 import { ConfigService } from '@nestjs/config';
-import { getTopToolDescriptionsForApp, getAllAvailableAppNames } from './top-tools.registry'; // Import from your registry
+import {
+  getTopToolDescriptionsForApp,
+  getAllAvailableAppNames,
+} from './top-tools.registry'; // Import from your registry
 
 // Define the Zod schema for the LLM's output
 export const llmRoutingSchema = z.object({
-  appNames: z.array(z.string()).describe("List of relevant application names."),
-  toolNames: z.array(z.string()).describe("List of specific tool names that are necessary from those apps' top tools."),
+  appNames: z.array(z.string()).describe('List of relevant application names.'),
+  toolNames: z
+    .array(z.string())
+    .describe(
+      "List of specific tool names that are necessary from those apps' top tools.",
+    ),
 });
 
 // Infer the TypeScript type from the Zod schema for type safety
@@ -23,7 +30,9 @@ export class LlmRouterService {
   constructor(private configService: ConfigService) {
     this.OPENAI_API_KEY = this.configService.get<string>('OPENAI_API_KEY')!;
     if (!this.OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY is not set in environment variables. LLM routing will fail.');
+      console.error(
+        'OPENAI_API_KEY is not set in environment variables. LLM routing will fail.',
+      );
       // In a real app, you might throw an error here or handle it gracefully.
     }
   }
@@ -34,10 +43,12 @@ export class LlmRouterService {
    * @returns A promise that resolves to an object containing relevant app names and tool names.
    * @throws InternalServerErrorException if the LLM call fails.
    */
-  public async routeAppsWithLLM(userQuery: string): Promise<LLMRoutingResponse> {
+  public async routeAppsWithLLM(
+    userQuery: string,
+  ): Promise<LLMRoutingResponse> {
     const availableAppNames = getAllAvailableAppNames();
     // Prepare the context for the LLM, including available apps and their top tools
-    const appContext = availableAppNames.map(appName => ({
+    const appContext = availableAppNames.map((appName) => ({
       appName: appName,
       topTools: getTopToolDescriptionsForApp(appName),
     }));
@@ -67,18 +78,21 @@ export class LlmRouterService {
       });
 
       // Filter to ensure only valid app/tool names are returned based on your registry
-      const relevantAppNames = object.appNames.filter(name => availableAppNames.includes(name));
-      const relevantToolNames = object.toolNames.filter(toolName =>
-        availableAppNames.some(appName => getTopToolDescriptionsForApp(appName)[toolName])
+      const relevantAppNames = object.appNames.filter((name) =>
+        availableAppNames.includes(name),
+      );
+      const relevantToolNames = object.toolNames.filter((toolName) =>
+        availableAppNames.some(
+          (appName) => getTopToolDescriptionsForApp(appName)[toolName],
+        ),
       );
 
       console.log(`LLM Routing Results for query "${userQuery}":`, {
         appNames: relevantAppNames,
-        toolNames: relevantToolNames
+        toolNames: relevantToolNames,
       });
 
       return { appNames: relevantAppNames, toolNames: relevantToolNames };
-
     } catch (error) {
       console.error('Error calling LLM for app routing:', error);
       // Throw a NestJS HTTP exception for consistent error handling

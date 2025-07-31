@@ -1,12 +1,15 @@
-import { ChatMessage, ComprehensiveAnalysis } from '../interfaces/chat.interfaces';
+import {
+  ChatMessage,
+  ComprehensiveAnalysis,
+} from '../interfaces/chat.interfaces';
 
 export function buildOptimizedPrompt(
   userQuery: string,
   analysis: ComprehensiveAnalysis,
   conversationHistory: ChatMessage[],
-  hasTools: boolean
+  hasTools: boolean,
 ): string {
-  const currentDate = new Date().toISOString().split("T")[0];
+  const currentDate = new Date().toISOString().split('T')[0];
   const { conversationSummary, executionSteps, confidenceScore } = analysis;
 
   let prompt = `You are an advanced AI assistant optimized for efficient execution. Your primary goal is to accurately complete tasks and report their outcomes.
@@ -16,23 +19,26 @@ export function buildOptimizedPrompt(
 - Query Confidence: ${confidenceScore.toFixed(2)}
 - Current Intent: ${conversationSummary.currentIntent}
 - Conversation State: ${conversationSummary.conversationState}
-- Tools Available: ${hasTools ? "Yes" : "No"}
+- Tools Available: ${hasTools ? 'Yes' : 'No'}
 
 **Execution Plan (${executionSteps.length} steps):**
 ${executionSteps
   .map((step, i) => `${i + 1}. ${step.description} (${step.priority})`)
-  .join("\n")}
+  .join('\n')}
 
 **Key Context:**
-- Gathered: ${conversationSummary.contextualDetails.gatheredInformation.join(", ") || "None"}
-- Missing: ${conversationSummary.contextualDetails.missingInformation.join(", ") || "None"}
-- Entities: ${conversationSummary.keyEntities.map((e) => `${e.type}:${e.value}`).join(", ") || "None"}`;
+- Gathered: ${conversationSummary.contextualDetails.gatheredInformation.join(', ') || 'None'}
+- Missing: ${conversationSummary.contextualDetails.missingInformation.join(', ') || 'None'}
+- Entities: ${conversationSummary.keyEntities.map((e) => `${e.type}:${e.value}`).join(', ') || 'None'}`;
 
   if (conversationHistory.length > 0) {
     prompt += `\n\n**Recent History:**\n${conversationHistory
       .slice(-2)
-      .map((msg) => `${msg.role}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? "..." : ""}`)
-      .join("\n")}`;
+      .map(
+        (msg) =>
+          `${msg.role}: ${msg.content.substring(0, 100)}${msg.content.length > 100 ? '...' : ''}`,
+      )
+      .join('\n')}`;
   }
 
   prompt += `\n\n**Current Query:** "${userQuery}"`;
