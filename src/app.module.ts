@@ -10,6 +10,8 @@ import { LlmRouterService } from './llm-router/llm-router.service';
 import { ConfigModule } from '@nestjs/config';
 import { ChatModule } from './chat/chat.module';
 import { DatabaseModule } from './database/database.module';
+import { PgVectorService } from './PgVector/pgvector.service'
+import { PgVectorModule } from './PgVector/pgvector.module';
 
 @Module({
   imports: [
@@ -22,8 +24,9 @@ import { DatabaseModule } from './database/database.module';
     ToolsModule,
     LlmRouterModule,
     ChatModule,
+    PgVectorModule,
   ],
   controllers: [AppController, ToolsController],
-  providers: [AppService, PineconeService, LlmRouterService],
+  providers: [AppService, LlmRouterService, PgVectorService],
 })
 export class AppModule {}

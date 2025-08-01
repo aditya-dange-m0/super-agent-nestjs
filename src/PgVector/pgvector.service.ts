@@ -101,7 +101,7 @@ export class PgVectorService implements OnModuleInit {
    * @param tools The object containing tool definitions for the app.
    * @throws InternalServerErrorException if ingestion fails.
    */
-  public async ingestComposioAppToolsToPinecone(
+  public async ingestComposioAppTools(
     appKey: string,
     tools: ToolsObject,
   ): Promise<void> {
@@ -153,7 +153,7 @@ export class PgVectorService implements OnModuleInit {
    * @returns A promise that resolves to an array of relevant tool names.
    * @throws InternalServerErrorException if the search fails.
    */
-  public async getComposioAppToolsFromPinecone(
+  public async getComposioAppTools(
     appKey: string,
     naturalLanguageQuery: string,
     topK: number = 3,

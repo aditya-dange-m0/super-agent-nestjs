@@ -8,7 +8,7 @@ import {
   BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { PineconeService } from '../pinecone/pinecone.service';
+import { PgVectorService } from '../PgVector/pgvector.service';
 import { ComposioService } from '../composio/composio.service'; // Assuming ComposioService is in this path
 import { ToolsObject } from '../types/types'; // Adjust path as needed
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
@@ -30,7 +30,7 @@ interface SearchRequestBody {
 @Controller('tools') // Base route for all endpoints in this controller
 export class ToolsController {
   constructor(
-    private readonly pineconeService: PineconeService,
+    private readonly pgVectorService: PgVectorService,
     private readonly composioService: ComposioService, // Inject ComposioService
   ) {}
 
@@ -64,7 +64,7 @@ export class ToolsController {
       );
 
       // 2. Ingest these tools into Pinecone using the injected service
-      await this.pineconeService.ingestComposioAppToolsToPinecone(
+      await this.pgVectorService.ingestComposioAppTools(
         appName,
         fullTools,
       );
@@ -113,7 +113,7 @@ export class ToolsController {
     try {
       // Perform semantic search using the injected PineconeService
       const relevantToolNames: string[] =
-        await this.pineconeService.getComposioAppToolsFromPinecone(
+        await this.pgVectorService.getComposioAppTools(
           appName,
           userQuery,
           topK,

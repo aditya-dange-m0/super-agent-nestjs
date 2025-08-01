@@ -1,11 +1,12 @@
 // src/composio/composio.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { VercelAIToolSet, ConnectionRequest } from 'composio-core';
 import { v4 as uuidv4 } from 'uuid';
 import { AppConnectionDbService } from '../database/services/app-connection-db.service';
 
 @Injectable()
 export class ComposioService {
+  private readonly logger = new Logger(ComposioService.name);
   // Private property to hold the VercelAIToolSet instance
   private readonly toolset: VercelAIToolSet;
   // Private property to store the Composio API key
@@ -18,7 +19,7 @@ export class ComposioService {
 
     // Log an error if the API key is not found
     if (!this.COMPOSIO_API_KEY) {
-      console.error('No COMPOSIO_API_KEY found in environment variables.');
+      this.logger.error('No COMPOSIO_API_KEY found in environment variables.');
     }
 
     // Initialize the VercelAIToolSet with the API key
@@ -57,7 +58,7 @@ export class ComposioService {
     const entityId = userId || this.generateUUID();
 
     try {
-      console.log(
+      this.logger.log(
         `Initiating connection to ${appName} for entity: '${entityId}'...`,
       );
       // Call the Composio API to initiate the connection
@@ -78,21 +79,15 @@ export class ComposioService {
         );
       }
 
-      console.log(
+      this.logger.log(
         `Initiated Composio connection for ${appName} for user ${entityId}. Redirect URL: ${initialConnectedAccount.redirectUrl}`,
       );
-      console.log(
-        `------------------------------------------------------------------------------------------------------------------------`,
-      );
-      console.log(
+      this.logger.log(
         `Connected Account ID: ${initialConnectedAccount.connectedAccountId}`,
-      );
-      console.log(
-        `------------------------------------------------------------------------------------------------------------------------`,
       );
       return initialConnectedAccount;
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Failed to initiate Composio connection for ${appName} and user ${entityId}:`,
         error,
       );
@@ -139,7 +134,7 @@ export class ComposioService {
       });
       return connection;
     } catch (error) {
-      console.error(`Failed to get status for ${connectedAccountId}:`, error);
+      this.logger.error(`Failed to get status for ${connectedAccountId}:`, error);
       throw new Error(
         `Failed to get connection status: ${
           error instanceof Error ? error.message : String(error)
@@ -217,10 +212,10 @@ export class ComposioService {
     try {
       // Call the Composio API to get tools for the specified app
       const composioTools = await this.toolset.getTools({ apps: [appName] });
-      console.log(`Fetched ${composioTools.length} tools for app: ${appName}`);
+      this.logger.log(`Fetched ${composioTools.length} tools for app: ${appName}`);
       return composioTools;
     } catch (error) {
-      console.error(`Error fetching Composio tools for app ${appName}:`, error);
+      this.logger.error(`Error fetching Composio tools for app ${appName}:`, error);
       throw new Error(
         `Failed to fetch Composio tools for ${appName}: ${
           error instanceof Error ? error.message : String(error)
@@ -250,9 +245,10 @@ export class ComposioService {
         { actions: tools },
         userId,
       );
+      this.logger.log(`Fetched ${tools.length} specific tools for user ${userId}`);
       return fetchedTools;
     } catch (error) {
-      console.error(`Error fetching Composio tools: `, error);
+      this.logger.error(`Error fetching Composio tools: `, error);
       throw new Error(
         `Failed to fetch Composio tools: ${
           error instanceof Error ? error.message : String(error)
@@ -289,9 +285,10 @@ export class ComposioService {
           data: {}, // Additional data if required for re-initiation
           redirectUri: result.redirectUrl || undefined, // Use the redirect URL from the initial connection
         });
+      this.logger.log(`Re-initiated connection for app ${appName} with connectedAccountId ${connectedAccountId}`);
       return connectedID;
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error enabling Composio connection for app ${appName}:`,
         error,
       );
@@ -323,7 +320,7 @@ export class ComposioService {
     }
 
     try {
-      console.log(
+      this.logger.log(
         `Executing Composio action '${action}' for user ${userId} using connection ${connectedAccountId} with params:`,
         params,
       );
@@ -336,7 +333,7 @@ export class ComposioService {
       });
 
       if (!result.successful) {
-        console.error(
+        this.logger.error(
           `Composio action '${action}' failed for user ${userId} and connection ${connectedAccountId}:`,
           result.error,
         );
@@ -345,12 +342,12 @@ export class ComposioService {
         );
       }
 
-      console.log(
+      this.logger.log(
         `Composio action '${action}' successful for user ${userId} and connection ${connectedAccountId}.`,
       );
       return result.data;
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error executing Composio action '${action}' for user ${userId} and connection ${connectedAccountId}:`,
         error,
       );
@@ -362,7 +359,6 @@ export class ComposioService {
     }
   }
 }
-
 // /**
 //    * Saves a user's connected account ID for a specific application in the mock database.
 //    * @param userId The ID of the user.
@@ -402,3 +398,4 @@ export class ComposioService {
 //   );
 //   return connectedAccountId;
 // }
+

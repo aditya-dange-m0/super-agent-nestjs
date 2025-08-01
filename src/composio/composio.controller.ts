@@ -1,17 +1,13 @@
-import {
-  Controller,
-  Post,
-  Body,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Post, Body, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ComposioService } from './composio.service';
 import { ComposioInitiateDto } from './dto/composio-initiate.dto';
 import { ComposioCallbackDto } from './dto/composio-callback.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+
 @ApiTags('Composio')
 @Controller('composio')
 export class ComposioController {
+  private readonly logger = new Logger(ComposioController.name);
   constructor(private readonly composioService: ComposioService) {}
 
   @Post('callback')
@@ -31,7 +27,7 @@ export class ComposioController {
         await this.composioService.getComposioConnectionStatus(
           connectedAccountId,
         );
-      console.log('connection.status: ', activeConnection.status);
+      this.logger.log(`connection.status: ${activeConnection.status}`);
       // If connection is active, update DB status
       if (activeConnection.status === 'ACTIVE' && userId && appName) {
         await this.composioService.confirmComposioConnection(
@@ -46,7 +42,7 @@ export class ComposioController {
         status: activeConnection.status,
       };
     } catch (error) {
-      console.error(error);
+      this.logger.error(error);
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       throw new HttpException(
@@ -68,17 +64,16 @@ export class ComposioController {
   @ApiResponse({ status: 500, description: 'Failed to initiate connection' })
   async initiateConnection(@Body() body: ComposioInitiateDto) {
     try {
-      const { appName } = body;
-      const userId = '984bf230-6866-45de-b610-a08b61aaa6ef'; // Move to config service
-
-      console.log(
+      const { appName, userId } = body;
+      // NOTE: For best security, enable NestJS global validation pipe in main.ts if not already enabled.
+      this.logger.log(
         `Received connection initiation request for app: ${appName}, user session: ${userId}`,
       );
 
       const connectionRequest =
         await this.composioService.initiateComposioConnection(userId, appName);
 
-      console.log(
+      this.logger.log(
         `Connected Account ID: ${connectionRequest.connectedAccountId}`,
       );
 
@@ -89,7 +84,7 @@ export class ComposioController {
           connectedAccountId: connectionRequest.connectedAccountId,
         };
       } else {
-        console.warn(
+        this.logger.warn(
           'Composio did not return a redirectUrl. This might indicate an immediate connection or an issue.',
         );
         return {
@@ -99,7 +94,7 @@ export class ComposioController {
         };
       }
     } catch (error) {
-      console.error('[COMPOSIO/INITIATE] Error:', error);
+      this.logger.error('[COMPOSIO/INITIATE] Error:', error);
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred.';
 

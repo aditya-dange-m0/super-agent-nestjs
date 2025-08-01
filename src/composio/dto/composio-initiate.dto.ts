@@ -14,5 +14,6 @@ export class ComposioInitiateDto {
     description: 'The UUID of User',
   })
   @IsString()
-  userId?: string;
+  @IsNotEmpty()
+  userId: string;
 }

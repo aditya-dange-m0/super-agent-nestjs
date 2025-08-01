@@ -5,9 +5,8 @@ import { CacheService } from '../cache/cache.service';
 import { ModelProviderService } from '../common/services/model-provider.service';
 import { AnalysisService } from './services/analysis.service';
 import { ToolPreparationService } from './services/tool-preparation.service';
-import { ConversationService } from './services/conversation.service';
 import { ExecutionContextService } from './services/execution-context.service';
-import { PineconeService } from '../pinecone/pinecone.service';
+import { PgVectorService } from '../PgVector/pgvector.service';
 import { LlmRouterService } from '../llm-router/llm-router.service';
 import { DatabaseIntegrationService } from '../database/services/database-integration.service';
 import {
@@ -28,9 +27,8 @@ export class ChatService {
     private readonly modelProviderService: ModelProviderService,
     private readonly analysisService: AnalysisService,
     private readonly toolPreparationService: ToolPreparationService,
-    private readonly conversationService: ConversationService,
     private readonly executionContextService: ExecutionContextService,
-    private readonly pineconeService: PineconeService,
+    private readonly pgVectorService: PgVectorService,
     private readonly llmRouterService: LlmRouterService, // Fixed naming
     private readonly configService: ConfigService,
     private readonly databaseIntegrationService: DatabaseIntegrationService,
@@ -61,9 +59,12 @@ export class ChatService {
     );
 
     try {
-      this.logger.log(
-        `🚀 Production Chat Request - User: ${userId}, Query: "${userQuery.substring(0, 40)}...", Session: ${sessionId || 'N/A'}`,
-      );
+      this.logger.log({
+        event: 'Production Chat Request',
+        userId: userId?.slice(0, 6) + '...',
+        query: userQuery?.substring(0, 40) + '...',
+        sessionId: sessionId || 'N/A',
+      });
 
       // Initialize database context
       const dbContext = await this.databaseIntegrationService.initializeContext(
@@ -72,7 +73,7 @@ export class ChatService {
       );
 
       // Initialize Pinecone - using the lifecycle method from your service
-      await this.pineconeService.onModuleInit();
+      await this.pgVectorService.onModuleInit();
 
       // Get conversation history from database
       let existingHistory = conversationHistory;
@@ -84,12 +85,10 @@ export class ChatService {
           );
       }
 
-      // Fallback to in-memory history if database fails
+      // If database fails to return history, throw error (no in-memory fallback)
       if (!existingHistory) {
-        existingHistory = this.conversationService.getHistory(
-          userId,
-          sessionId,
-        );
+        this.logger.error('Failed to retrieve conversation history from database.');
+        throw new Error('Could not retrieve conversation history. Please try again later.');
       }
 
       const lastSummary =
@@ -98,17 +97,19 @@ export class ChatService {
               ?.conversationSummary
           : null;
 
-      this.logger.log(
-        `Existing conversation history length: ${existingHistory.length}`,
-      );
+      this.logger.log({
+        event: 'Existing conversation history',
+        length: existingHistory.length,
+      });
       if (lastSummary) {
-        this.logger.log(
-          `Last conversation summary intent: ${lastSummary.currentIntent}`,
-        );
+        this.logger.log({
+          event: 'Last conversation summary intent',
+          intent: lastSummary.currentIntent,
+        });
       }
 
       // Phase 1: Single comprehensive analysis
-      this.logger.log('📊 Phase 1: Comprehensive Analysis');
+      this.logger.log({ event: 'Phase 1', phase: 'Comprehensive Analysis' });
       const analysis = await this.analysisService.performComprehensiveAnalysis(
         userQuery,
         existingHistory,
@@ -142,12 +143,19 @@ export class ChatService {
       await this.updateConversationHistory(request, finalResponse, analysis);
 
       const processingTime = Date.now() - startTime;
-      this.logger.log(`✅ Request completed in ${processingTime}ms`);
+      this.logger.log({
+        event: 'Request completed',
+        processingTime,
+      });
 
       return finalResponse;
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      this.logger.error(`❌ API Error after ${processingTime}ms:`, error);
+      this.logger.error({
+        event: 'API Error',
+        processingTime,
+        error,
+      });
       throw error;
     }
   }
@@ -174,9 +182,11 @@ export class ChatService {
       );
 
     const hasTools = Object.keys(toolResult.tools).length > 0;
-    this.logger.log(
-      `Tools prepared. Has tools: ${hasTools}. Required connections: ${JSON.stringify(toolResult.requiredConnections)}`,
-    );
+    this.logger.log({
+      event: 'Tools prepared',
+      hasTools,
+      requiredConnections: toolResult.requiredConnections,
+    });
 
     if (hasTools) {
       return await this.executeWithTools(
@@ -212,7 +222,9 @@ export class ChatService {
       true,
     );
 
-    this.logger.log('Calling generateText with tools...');
+    this.logger.log({
+      event: 'Calling generateText with tools',
+    });
 
     // Use dynamic model selection for chat
     const chatModel = this.modelProviderService.getChatModel();
@@ -231,9 +243,11 @@ export class ChatService {
     const toolCalls = executionResult.toolCalls || [];
     const toolResults = executionResult.toolResults || [];
 
-    this.logger.log(
-      `generateText returned ${toolCalls.length} tool calls with ${toolResults.length} results`,
-    );
+    this.logger.log({
+      event: 'generateText result',
+      toolCalls: toolCalls.length,
+      toolResults: toolResults.length,
+    });
 
     // Create a map of toolCallId to result for easy lookup
     const resultMap = new Map();
@@ -254,9 +268,12 @@ export class ChatService {
         // Get the result for this specific tool call
         const toolCallResult = resultMap.get(toolCall.toolCallId);
 
-        this.logger.log(
-          `Tool Execution - Tool: ${toolCall.toolName}, Args: ${JSON.stringify(toolCall.args)}, Result: ${JSON.stringify(toolCallResult)}`,
-        );
+        this.logger.log({
+          event: 'Tool Execution',
+          tool: toolCall.toolName,
+          args: toolCall.args,
+          result: toolCallResult,
+        });
 
         // Create the executed tool object with the result
         const executedTool = {
@@ -274,10 +291,11 @@ export class ChatService {
           typeof toolCallResult === 'object' &&
           'error' in toolCallResult
         ) {
-          this.logger.error(
-            `Tool Execution FAILURE for ${toolCall.toolName}:`,
-            toolCallResult.error,
-          );
+          this.logger.error({
+            event: 'Tool Execution FAILURE',
+            tool: toolCall.toolName,
+            error: toolCallResult.error,
+          });
           hadToolFailure = true;
           failedToolNames.push(toolCall.toolName);
           toolExecutionDetails.push(
@@ -289,14 +307,19 @@ export class ChatService {
           'success' in toolCallResult &&
           toolCallResult.success === false
         ) {
-          this.logger.error(
-            `Tool Execution FAILURE for ${toolCall.toolName}: Success property is false`,
-          );
+          this.logger.error({
+            event: 'Tool Execution FAILURE',
+            tool: toolCall.toolName,
+            error: 'Success property is false',
+          });
           hadToolFailure = true;
           failedToolNames.push(toolCall.toolName);
           toolExecutionDetails.push(`${toolCall.toolName} failed.`);
         } else {
-          this.logger.log(`Tool Execution SUCCESS for ${toolCall.toolName}`);
+          this.logger.log({
+            event: 'Tool Execution SUCCESS',
+            tool: toolCall.toolName,
+          });
           toolExecutionDetails.push(`${toolCall.toolName} succeeded.`);
         }
 
@@ -416,12 +439,16 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
       // Using the correct service method name from your LlmRouterService
       const { toolNames } =
         await this.llmRouterService.routeAppsWithLLM(userQuery);
-      this.logger.log(
-        `Initial routing identified specific tool names: ${JSON.stringify(toolNames)}`,
-      );
+      this.logger.log({
+        event: 'Initial routing',
+        toolNames,
+      });
       return toolNames;
     } catch (error) {
-      this.logger.warn('Error during initial routing for tool names:', error);
+      this.logger.warn({
+        event: 'Error during initial routing for tool names',
+        error,
+      });
       return [];
     }
   }
@@ -450,7 +477,7 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
       analysis,
     };
 
-    // Always try to persist to the database first
+    // Always try to persist to the database
     try {
       const dbContext = await this.databaseIntegrationService.initializeContext(
         request.userId,
@@ -462,22 +489,15 @@ Provide a helpful, conversational response. If unclear, ask for clarification po
         response,
         analysis,
       );
+      this.logger.log({
+        event: 'Saving conversation to database',
+      });
     } catch (error) {
-      this.logger.error(
-        'Error saving conversation to database, falling back to in-memory store:',
+      this.logger.error({
+        event: 'Error saving conversation to database',
         error,
-      );
-      // Fallback: update in-memory conversation history
-      this.conversationService.updateHistory(
-        request.userId,
-        userMessage,
-        request.sessionId,
-      );
-      this.conversationService.updateHistory(
-        request.userId,
-        assistantMessage,
-        request.sessionId,
-      );
+      });
+      throw new Error('Could not save conversation history. Please try again later.');
     }
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CacheService } from '../../cache/cache.service';
-import { PineconeService } from '../../pinecone/pinecone.service';
+import { PgVectorService } from '../../PgVector/pgvector.service';
 import { ComposioService } from '../../composio/composio.service';
 import { LlmRouterService } from '../../llm-router/llm-router.service';
 import { ComprehensiveAnalysis } from '../interfaces/chat.interfaces';
@@ -30,7 +30,7 @@ export class ToolPreparationService {
 
   constructor(
     private readonly cacheService: CacheService,
-    private readonly PineconeService: PineconeService,
+    private readonly pgVectorService: PgVectorService,
     private readonly composioService: ComposioService,
     private readonly LlmRouterService: LlmRouterService,
     private readonly appConnectionDbService: AppConnectionDbService,
@@ -173,7 +173,7 @@ export class ToolPreparationService {
               `Performing semantic search for tools in ${appName} with query: "${userQuery}"`,
             );
             relevantTools =
-              await this.PineconeService.getComposioAppToolsFromPinecone(
+              await this.pgVectorService.getComposioAppTools(
                 appName,
                 userQuery,
                 5,

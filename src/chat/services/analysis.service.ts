@@ -53,7 +53,7 @@ export class AnalysisService {
 
     try {
       this.logger.log('Calling Mastra for comprehensive analysis...');
-      console.log('[Analysis] Calling LLM for comprehensive analysis...');
+      // console.log('[Analysis] Calling LLM for comprehensive analysis...');
 
       const analysisModel = this.modelProviderService.getAnalysisModel();
 
@@ -79,9 +79,9 @@ export class AnalysisService {
         apps: object.recommendedApps,
         needsTools: object.requiresToolExecution,
       });
-      console.log(
-        `[Analysis] Full analysis object: ${JSON.stringify(object, null, 2)}`,
-      );
+      // console.log(
+      //   `[Analysis] Full analysis object: ${JSON.stringify(object, null, 2)}`,
+      // );
 
       return object;
     } catch (error) {

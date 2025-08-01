@@ -1,13 +1,21 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsArray,
-  ValidateNested,
-} from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsArray, ValidateNested } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiHideProperty } from '@nestjs/swagger';
+import { ComprehensiveAnalysis } from '../interfaces/chat.interfaces';
+
+export class ToolCall {
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  args: any;
+
+  @IsOptional()
+  result?: any;
+
+  @IsOptional()
+  toolCallId?: string;
+}
 
 export class ChatMessage {
   @IsString()
@@ -19,19 +27,19 @@ export class ChatMessage {
   content: string;
 
   @IsNumber()
-  @Transform(({ value }) => value || Date.now()) // Auto-generate if not provided
-  timestamp: number; // Made required to match interface
+  @Transform(({ value }) => value || Date.now())
+  timestamp: number;
 
   @IsOptional()
-  toolCalls?: {
-    name: string;
-    args: any;
-    result?: any;
-    toolCallId?: string;
-  }[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ToolCall)
+  @ApiHideProperty()
+  toolCalls?: ToolCall[];
 
   @IsOptional()
-  analysis?: any; // ComprehensiveAnalysis type
+  @ApiHideProperty()
+  analysis?: ComprehensiveAnalysis;
 }
 
 export class ChatRequestDto {
